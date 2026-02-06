@@ -67,8 +67,10 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
       if (done) start = {24'd0, offset};     // read mode: address
       else      start = {22'd0, SW[9:0]};    // run mode: base n
    end
-
-   assign n = ({2'd0, SW[9:0]} + {4'd0, offset})[11:0];
+   
+   logic [11:0] n_sum; 
+   assign n_sum = {2'd0, SW[9:0]} + {4'd0, offset};
+   assign n = n_sum[11:0];
 
    hex7seg h0(.a(count[3:0]),   .y(HEX0));
    hex7seg h1(.a(count[7:4]),   .y(HEX1));
