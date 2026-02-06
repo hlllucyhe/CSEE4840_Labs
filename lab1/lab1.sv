@@ -29,74 +29,74 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
          r ( .* ); // Connect everything with matching names
 
    // Replace this comment and the code below it with your own code;
-   logic [3:0] k0, k1;
-    always_ff @(posedge clk) begin
-        k0 <= KEY; k1 <= k0;
-    end
-    logic k3p, k2p;
-    always_ff @(posedge clk) begin
-        k3p <= k1[3];
-        k2p <= k1[2];
-    end
-    wire run_pulse   = (k3p && !k1[3]); // falling edge
-    wire reset_pulse = (k2p && !k1[2]); // falling edge
+   logic [7:0]  offset;        // 0..255 within the 256-entry RAM
+   logic [21:0] repeat_ctr;    // hold-to-repeat counter
+   logic        k3_prev;       // for edge detect on KEY[3]
+   logic [9:0]  base;          // latched switch value (so switches don't update display)
 
-    // offset select within [SW .. SW+255]
-    logic [7:0]  offset;
-    logic [21:0] rep;
-    wire         tick = (rep == 22'd0);
+   // 1-cycle go pulse on KEY[3] press (KEYs are active-low)
+   always_ff @(posedge clk) begin
+      k3_prev <= ~KEY[3];
+   end
+   assign go = (~KEY[3]) & ~k3_prev;
 
-    // track if RAM matches current SW base
-    logic [9:0]  sw_prev;
-    logic        filled, running;
+   // Latch base when starting a run (so SW changes afterward don't affect display/run)
+   always_ff @(posedge clk) begin
+      if (go || ~KEY[2]) begin
+          if (SW == 10'd0)
+            base <= 10'd1;
+          else
+            base <= SW;
+      end
+   end
 
-    always_ff @(posedge clk) begin
-        sw_prev <= SW;
-        rep     <= rep + 22'd1;
+   // Offset control:
+   // KEY[0] increment, KEY[1] decrement, KEY[2] sets display to switches (base=SW, offset=0)
+   always_ff @(posedge clk) begin
+      if (~KEY[2]) begin
+         offset     <= 8'd0;     // display exactly the (latched) switch value
+         repeat_ctr <= 22'd0;
+      end else begin
+         if ((~KEY[0]) || (~KEY[1])) begin
+            repeat_ctr <= repeat_ctr + 22'd1;
 
-        if (SW != sw_prev) begin
-            filled  <= 1'b0;
-            running <= 1'b0;
-            offset  <= 8'd0;
-        end else begin
-            if (run_pulse && !running) begin
-                running <= 1'b1;
-                filled  <= 1'b0;
+            // change on wrap (lab suggests using a 22-bit counter and updating on wrap)
+            if (&repeat_ctr) begin
+               if ((~KEY[0]) && KEY[1]) begin
+                  if (offset != 8'hFF) offset <= offset + 8'd1;
+               end else if ((~KEY[1]) && KEY[0]) begin
+                  if (offset != 8'd0) offset <= offset - 8'd1;
+               end
             end
-            if (done) begin
-                running <= 1'b0;
-                filled  <= 1'b1;
-            end
+         end else begin
+            repeat_ctr <= 22'd0;
+         end
+      end
+   end
 
-            if (reset_pulse) offset <= 8'd0;
-            else if (tick) begin
-                if (!k1[0] && k1[1])      offset <= offset + 8'd1; // KEY[0] inc
-                else if (!k1[1] && k1[0]) offset <= offset - 8'd1; // KEY[1] dec
-            end
-        end
-    end
+   // Drive range.start:
+   // - while filling RAM: start is the latched base n
+   // - after done: start is the read address (0..255)
+   always_comb begin
+      if (done) start = {24'd0, offset};     // read mode: address
+      else      start = (base == 10'd0) ? 32'd0 : {22'd0, base};       // run mode: latched base n
+   end
 
-    assign go = run_pulse && !running;
+   // displayed n = latched base + offset (show low 12 bits)
+   assign n_full = {2'd0, base} + {4'd0, offset};
+   assign n = (n_full[11:0] == 12'd0) ? 12'd1 : n_full[11:0];
 
-    // range start: SW when filling, offset when reading
-    always_comb begin
-        if (running) start = {22'd0, SW};
-        else         start = {24'd0, offset};
-    end
+   // 7-seg display:
+   // Right 3 HEX (HEX2..HEX0): count (lower 12 bits)
+   // Left  3 HEX (HEX5..HEX3): n (lower 12 bits)
+   hex7seg h0(.a(count[3:0]),   .y(HEX0));
+   hex7seg h1(.a(count[7:4]),   .y(HEX1));
+   hex7seg h2(.a(count[11:8]),  .y(HEX2));
+   hex7seg h3(.a(n[3:0]),       .y(HEX3));
+   hex7seg h4(.a(n[7:4]),       .y(HEX4));
+   hex7seg h5(.a(n[11:8]),      .y(HEX5));
 
-    // displayed n and count
-    always_comb n = {2'b00, SW} + {4'b0000, offset};
-    logic [15:0] cshow;
-    always_comb cshow = filled ? count : 16'd0;
-
-    // display
-    hex7seg h5(.a(n[11:8]),     .y(HEX5));
-    hex7seg h4(.a(n[7:4]),      .y(HEX4));
-    hex7seg h3(.a(n[3:0]),      .y(HEX3));
-    hex7seg h2(.a(cshow[11:8]), .y(HEX2));
-    hex7seg h1(.a(cshow[7:4]),  .y(HEX1));
-    hex7seg h0(.a(cshow[3:0]),  .y(HEX0));
-
-    assign LEDR = SW;
+   // LEDs mirror switches (fine to keep live)
+   assign LEDR = SW;
 
 endmodule
