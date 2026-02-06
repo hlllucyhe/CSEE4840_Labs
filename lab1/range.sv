@@ -26,12 +26,50 @@ module range
 
    /* Replace this comment and the code below with your solution,
       which should generate running, done, cgo, n, num, we, and din */
-   assign done = cdone;
-   assign cgo = go;
-   assign n = start;
-   assign din = 16'h0;
-   assign num = 0;
-   assign we = running;   
+
+   
+   // State machine to control the Collatz iteration process
+   always_ff @(posedge clk) begin
+      if (go && !running) begin
+         // Start new iteration sequence
+         running <= 1;
+         num <= 0;
+         din <= 1;
+         cgo <= 1;
+         n <= start;
+         done <= 0;
+         we <= 0;
+      end else if (running) begin
+         if (cgo) begin
+            // First cycle after starting Collatz - deassert cgo
+            cgo <= 0;
+         end else if (we) begin
+            // Just wrote to RAM - prepare for next number
+            we <= 0;
+            if (num == RAM_ADDR_BITS'(RAM_WORDS - 1)) begin
+               // Finished all iterations
+               running <= 0;
+               done <= 1;
+            end else begin
+               // Start next number
+               num <= num + 1;
+               n <= n + 1;
+               din <= 1;
+               cgo <= 1;
+            end
+         end else if (cdone) begin
+            // Collatz iteration complete - write count to RAM
+            we <= 1;
+         end else begin
+            // Counting iterations while Collatz is running
+            din <= din + 1;
+         end
+      end else if (done) begin
+         // One-cycle pulse for done
+         done <= 0;
+      end
+   end
+   
    /* Replace this comment and the code above with your solution */
 
    logic 			 we;                    // Write din to addr
