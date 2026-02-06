@@ -82,8 +82,9 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
       else      start = (base == 10'd0) ? 32'd0 : {22'd0, base};       // run mode: latched base n
    end
 
+   logic [31:0] n_full;
    // displayed n = latched base + offset (show low 12 bits)
-   assign n_full = {2'd0, base} + {4'd0, offset};
+   assign n_full = {22'd0, base} + {24'd0, offset};
    assign n = (n_full[11:0] == 12'd0) ? 12'd1 : n_full[11:0];
 
    // 7-seg display:
