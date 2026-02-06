@@ -29,56 +29,74 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
          r ( .* ); // Connect everything with matching names
 
    // Replace this comment and the code below it with your own code;
-   logic [7:0]  offset;       // 0..255 within the 256-entry RAM
-   logic [21:0] repeat_ctr;   // hold-to-repeat counter
-   logic        k3_prev;      // for edge detect on KEY[3]
+   logic [3:0] k0, k1;
+    always_ff @(posedge clk) begin
+        k0 <= KEY; k1 <= k0;
+    end
+    logic k3p, k2p;
+    always_ff @(posedge clk) begin
+        k3p <= k1[3];
+        k2p <= k1[2];
+    end
+    wire run_pulse   = (k3p && !k1[3]); // falling edge
+    wire reset_pulse = (k2p && !k1[2]); // falling edge
 
-   // 1-cycle go pulse on KEY[3] press
-   always_ff @(posedge clk) begin
-      k3_prev <= ~KEY[3];
-   end
-   assign go = (~KEY[3]) & ~k3_prev;
+    // offset select within [SW .. SW+255]
+    logic [7:0]  offset;
+    logic [21:0] rep;
+    wire         tick = (rep == 22'd0);
 
-   always_ff @(posedge clk) begin
-      if (~KEY[2]) begin
-         offset     <= 8'd0;
-         repeat_ctr <= 22'd0;
-      end else begin
-         if (go) offset <= 8'd0;   // reset offset when starting a new run
+    // track if RAM matches current SW base
+    logic [9:0]  sw_prev;
+    logic        filled, running;
 
-         if ((~KEY[0]) || (~KEY[1])) begin
-            repeat_ctr <= repeat_ctr + 22'd1;
+    always_ff @(posedge clk) begin
+        sw_prev <= SW;
+        rep     <= rep + 22'd1;
 
-            // change on wrap (~5-12 Hz depending on board; lab suggests 22-bit example)
-            if (&repeat_ctr) begin
-               if ((~KEY[0]) && KEY[1]) begin
-                  if (offset != 8'hFF) offset <= offset + 8'd1;
-               end else if ((~KEY[1]) && KEY[0]) begin
-                  if (offset != 8'd0) offset <= offset - 8'd1;
-               end
+        if (SW != sw_prev) begin
+            filled  <= 1'b0;
+            running <= 1'b0;
+            offset  <= 8'd0;
+        end else begin
+            if (run_pulse && !running) begin
+                running <= 1'b1;
+                filled  <= 1'b0;
             end
-         end else begin
-            repeat_ctr <= 22'd0;
-         end
-      end
-   end
+            if (done) begin
+                running <= 1'b0;
+                filled  <= 1'b1;
+            end
 
-   always_comb begin
-      if (done) start = {24'd0, offset};     // read mode: address
-      else      start = {22'd0, SW[9:0]};    // run mode: base n
-   end
-   
-   logic [11:0] n_sum; 
-   assign n_sum = {2'd0, SW[9:0]} + {4'd0, offset};
-   assign n = n_sum[11:0];
+            if (reset_pulse) offset <= 8'd0;
+            else if (tick) begin
+                if (!k1[0] && k1[1])      offset <= offset + 8'd1; // KEY[0] inc
+                else if (!k1[1] && k1[0]) offset <= offset - 8'd1; // KEY[1] dec
+            end
+        end
+    end
 
-   hex7seg h0(.a(count[3:0]),   .y(HEX0));
-   hex7seg h1(.a(count[7:4]),   .y(HEX1));
-   hex7seg h2(.a(count[11:8]),  .y(HEX2));
-   hex7seg h3(.a(n[3:0]),       .y(HEX3));
-   hex7seg h4(.a(n[7:4]),       .y(HEX4));
-   hex7seg h5(.a(n[11:8]),      .y(HEX5));
+    assign go = run_pulse && !running;
 
-   assign LEDR = SW;
+    // range start: SW when filling, offset when reading
+    always_comb begin
+        if (running) start = {22'd0, SW};
+        else         start = {24'd0, offset};
+    end
+
+    // displayed n and count
+    always_comb n = {2'b00, SW} + {4'b0000, offset};
+    logic [15:0] cshow;
+    always_comb cshow = filled ? count : 16'd0;
+
+    // display
+    hex7seg h5(.a(n[11:8]),     .y(HEX5));
+    hex7seg h4(.a(n[7:4]),      .y(HEX4));
+    hex7seg h3(.a(n[3:0]),      .y(HEX3));
+    hex7seg h2(.a(cshow[11:8]), .y(HEX2));
+    hex7seg h1(.a(cshow[7:4]),  .y(HEX1));
+    hex7seg h0(.a(cshow[3:0]),  .y(HEX0));
+
+    assign LEDR = SW;
 
 endmodule
