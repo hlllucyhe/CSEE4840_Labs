@@ -39,7 +39,7 @@ module range
          n <= start;
          done <= 0;
          we <= 0;
-      end else if (running && !(n==0)) begin
+      end else if (running) begin
          if (cgo) begin
             // First cycle after starting Collatz - deassert cgo
             cgo <= 0;

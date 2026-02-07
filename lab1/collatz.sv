@@ -10,10 +10,10 @@ module collatz( input logic         clk,   // Clock
    always_ff @(posedge clk) begin
       if (go) begin
          dout <= n;
-         done <= (n==1);
+         done <= (n==1) || (n==0); // Handle n=0 as a special case to avoid infinite loop
       end else if (!done) begin
          dout <= dout_next;
-         done <= (dout_next == 1);
+         done <= (dout_next == 1) || (dout_next == 0);
       end
    end
 
