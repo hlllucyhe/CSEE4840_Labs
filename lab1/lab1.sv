@@ -44,7 +44,7 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
    always_ff @(posedge clk) begin
       if (go || ~KEY[2]) begin
           if (SW == 10'd0)
-            base <= 10'd1;
+            base <= 10'd0;
           else
             base <= SW;
       end
@@ -53,26 +53,36 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
    // Offset control:
    // KEY[0] increment, KEY[1] decrement, KEY[2] sets display to switches (base=SW, offset=0)
    always_ff @(posedge clk) begin
-      if (~KEY[2]) begin
-         offset     <= 8'd0;     // display exactly the (latched) switch value
-         repeat_ctr <= 22'd0;
-      end else begin
-         if ((~KEY[0]) || (~KEY[1])) begin
-            repeat_ctr <= repeat_ctr + 22'd1;
+      // track previous button states (pressed = ~KEY[x])
+      k0_prev <= ~KEY[0];
+      k1_prev <= ~KEY[1];
 
-            // change on wrap (lab suggests using a 22-bit counter and updating on wrap)
-            if (&repeat_ctr) begin
-               if ((~KEY[0]) && KEY[1]) begin
-                  if (offset != 8'hFF) offset <= offset + 8'd1;
-               end else if ((~KEY[1]) && KEY[0]) begin
-                  if (offset != 8'd0) offset <= offset - 8'd1;
-               end
-            end
-         end else begin
+      if (~KEY[2]) begin
+            offset     <= 8'd0;
             repeat_ctr <= 22'd0;
-         end
+      end else begin
+            // immediate single-step on press (edge)
+            if ((~KEY[0]) && !k0_prev && KEY[1]) begin
+            if (offset != 8'hFF) offset <= offset + 8'd1;
+            repeat_ctr <= 22'd0;
+            end else if ((~KEY[1]) && !k1_prev && KEY[0]) begin
+            if (offset != 8'd0) offset <= offset - 8'd1;
+            repeat_ctr <= 22'd0;
+            end else if ((~KEY[0]) || (~KEY[1])) begin
+            // hold-to-repeat
+            repeat_ctr <= repeat_ctr + 22'd1;
+            if (&repeat_ctr) begin
+                  if ((~KEY[0]) && KEY[1]) begin
+                  if (offset != 8'hFF) offset <= offset + 8'd1;
+                  end else if ((~KEY[1]) && KEY[0]) begin
+                  if (offset != 8'd0) offset <= offset - 8'd1;
+                  end
+            end
+            end else begin
+            repeat_ctr <= 22'd0;
+            end
       end
-   end
+      end
 
    // Drive range.start:
    // - while filling RAM: start is the latched base n
