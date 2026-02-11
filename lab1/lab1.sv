@@ -1,6 +1,6 @@
 module debounce_keys #(
     parameter int N_KEYS = 4,
-    parameter int CLK_HZ = 50_000_000,
+    parameter int CLK_HZ = 25_000_000,
     parameter int DEBOUNCE_MS = 10
 )(
     input  logic                  clk,
@@ -57,8 +57,8 @@ module lab1(
     logic [3:0] key_db;
     debounce_keys #(
         .N_KEYS(4),
-        .CLK_HZ(50_000_000),
-        .DEBOUNCE_MS(2)
+        .CLK_HZ(25_000_000),
+        .DEBOUNCE_MS(1)
     ) u_db (
         .clk   (CLOCK_50),
         .key_in(KEY),
@@ -81,10 +81,9 @@ module lab1(
 
     logic [7:0] offset;
 
-    // Auto-repeat parameters
     localparam int CLK_HZ = 50_000_000;
-    localparam int INITIAL_DELAY_MS = 250; // hold for 250ms before repeating
-    localparam int REPEAT_HZ = 5;          // repeat speed after delay
+    localparam int INITIAL_DELAY_MS = 350;
+    localparam int REPEAT_HZ = 5;
 
     localparam int INITIAL_DELAY_CYCLES = (CLK_HZ/1000) * INITIAL_DELAY_MS;
     localparam int REPEAT_CYCLES        = (CLK_HZ / REPEAT_HZ);
@@ -97,20 +96,19 @@ module lab1(
     logic inc_repeating, dec_repeating;
 
     logic inc_pulse, dec_pulse, rst_pulse;
-    assign rst_pulse = key_fall[2];
+    assign rst_pulse = key_fall[2] | key_fall[3];
 
     always_ff @(posedge CLOCK_50) begin
         inc_pulse <= 1'b0;
         dec_pulse <= 1'b0;
 
-        // KEY0 auto-repeat (increment)
         if (key_fall[0]) begin
-            inc_pulse      <= 1'b1;     // single step on press
+            inc_pulse      <= 1'b1;
             inc_repeating  <= 1'b0;
             inc_delay_cnt  <= '0;
             inc_rep_cnt    <= '0;
         end else if (!key_pressed[0]) begin
-            inc_repeating  <= 1'b0;     // released
+            inc_repeating  <= 1'b0;
             inc_delay_cnt  <= '0;
             inc_rep_cnt    <= '0;
         end else begin
@@ -125,21 +123,20 @@ module lab1(
             end else begin
                 if (inc_rep_cnt == REPEAT_CYCLES-1) begin
                     inc_rep_cnt <= '0;
-                    inc_pulse   <= 1'b1; // repeat step
+                    inc_pulse   <= 1'b1;
                 end else begin
                     inc_rep_cnt <= inc_rep_cnt + 1'b1;
                 end
             end
         end
 
-        // KEY1 auto-repeat (decrement)
         if (key_fall[1]) begin
-            dec_pulse      <= 1'b1;     // single step on press
+            dec_pulse      <= 1'b1;
             dec_repeating  <= 1'b0;
             dec_delay_cnt  <= '0;
             dec_rep_cnt    <= '0;
         end else if (!key_pressed[1]) begin
-            dec_repeating  <= 1'b0;     // released
+            dec_repeating  <= 1'b0;
             dec_delay_cnt  <= '0;
             dec_rep_cnt    <= '0;
         end else begin
@@ -154,7 +151,7 @@ module lab1(
             end else begin
                 if (dec_rep_cnt == REPEAT_CYCLES-1) begin
                     dec_rep_cnt <= '0;
-                    dec_pulse   <= 1'b1; // repeat step
+                    dec_pulse   <= 1'b1;
                 end else begin
                     dec_rep_cnt <= dec_rep_cnt + 1'b1;
                 end
@@ -162,7 +159,6 @@ module lab1(
         end
     end
 
-    // Saturating offset update (no wrap-around)
     always_ff @(posedge CLOCK_50) begin
         if (rst_pulse) begin
             offset <= 8'd0;
@@ -214,19 +210,76 @@ module lab1(
     always_ff @(posedge CLOCK_50) begin
         if (!range_ready) begin
             k_display <= 12'd0;
-        end
-        else if (n_display == 12'd0) begin
-            k_display <= 12'd0;   // force 000 when n = 0
-        end
-        else begin
+        end else if (n_display == 12'd0) begin
+            k_display <= 12'd0;
+        end else begin
             k_display <= range_count[11:0];
         end
     end
 
+    // Blink the right three HEX digits after computation completes
+    localparam int BLINK_TOGGLE_HZ = 4;        // blink speed
+    localparam int BLINK_DURATION_MS = 1000;   // total blink duration
 
-    hex7seg h0(.a(k_display[3:0]),   .y(HEX0));
-    hex7seg h1(.a(k_display[7:4]),   .y(HEX1));
-    hex7seg h2(.a(k_display[11:8]),  .y(HEX2));
+    localparam int BLINK_TOGGLE_CYCLES = (CLK_HZ / BLINK_TOGGLE_HZ);
+    localparam int BLINK_DURATION_CYCLES = (CLK_HZ / 1000) * BLINK_DURATION_MS;
+
+    localparam int BT_W = (BLINK_TOGGLE_CYCLES  <= 1) ? 1 : $clog2(BLINK_TOGGLE_CYCLES);
+    localparam int BD_W = (BLINK_DURATION_CYCLES<= 1) ? 1 : $clog2(BLINK_DURATION_CYCLES);
+
+    logic blink_active;
+    logic blink_phase; // 1 = show, 0 = hide
+    logic [BT_W-1:0] blink_tcnt;
+    logic [BD_W-1:0] blink_dcnt;
+
+    always_ff @(posedge CLOCK_50) begin
+        if (go_pulse) begin
+            blink_active <= 1'b0;
+            blink_phase  <= 1'b1;
+            blink_tcnt   <= '0;
+            blink_dcnt   <= '0;
+        end else if (range_done_pulse) begin
+            blink_active <= 1'b1;
+            blink_phase  <= 1'b1;
+            blink_tcnt   <= '0;
+            blink_dcnt   <= '0;
+        end else if (blink_active) begin
+            if (blink_dcnt == BLINK_DURATION_CYCLES-1) begin
+                blink_active <= 1'b0;
+                blink_phase  <= 1'b1;
+                blink_tcnt   <= '0;
+                blink_dcnt   <= '0;
+            end else begin
+                blink_dcnt <= blink_dcnt + 1'b1;
+
+                if (blink_tcnt == BLINK_TOGGLE_CYCLES-1) begin
+                    blink_tcnt  <= '0;
+                    blink_phase <= ~blink_phase;
+                end else begin
+                    blink_tcnt <= blink_tcnt + 1'b1;
+                end
+            end
+        end
+    end
+
+    logic [6:0] hex0_n, hex1_n, hex2_n;
+
+    hex7seg h0(.a(k_display[3:0]),  .y(hex0_n));
+    hex7seg h1(.a(k_display[7:4]),  .y(hex1_n));
+    hex7seg h2(.a(k_display[11:8]), .y(hex2_n));
+
+    always_comb begin
+       if (blink_active && !blink_phase) begin
+          HEX0 = 7'b1111111;  // all segments off
+          HEX1 = 7'b1111111;
+          HEX2 = 7'b1111111;
+       end else begin
+          HEX0 = hex0_n;
+          HEX1 = hex1_n;
+          HEX2 = hex2_n;
+       end
+    end
+
 
     hex7seg h3(.a(n_display[3:0]),   .y(HEX3));
     hex7seg h4(.a(n_display[7:4]),   .y(HEX4));
