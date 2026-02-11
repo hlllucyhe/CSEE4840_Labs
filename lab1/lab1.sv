@@ -4,8 +4,8 @@ module debounce_keys #(
     parameter int DEBOUNCE_MS = 10
 )(
     input  logic                  clk,
-    input  logic [N_KEYS-1:0]      key_in,   // raw keys, active-low
-    output logic [N_KEYS-1:0]      key_db    // debounced keys, active-low
+    input  logic [N_KEYS-1:0]      key_in,
+    output logic [N_KEYS-1:0]      key_db
 );
 
     localparam int DEBOUNCE_CYCLES = (CLK_HZ / 1000) * DEBOUNCE_MS;
@@ -21,7 +21,7 @@ module debounce_keys #(
 
     integer i;
     initial begin
-        key_db = {N_KEYS{1'b1}}; // unpressed
+        key_db = {N_KEYS{1'b1}};
         for (i = 0; i < N_KEYS; i++) cnt[i] = '0;
     end
 
@@ -58,7 +58,7 @@ module lab1(
     debounce_keys #(
         .N_KEYS(4),
         .CLK_HZ(50_000_000),
-        .DEBOUNCE_MS(10)
+        .DEBOUNCE_MS(2)
     ) u_db (
         .clk   (CLOCK_50),
         .key_in(KEY),
@@ -71,7 +71,7 @@ module lab1(
     end
 
     logic [3:0] key_pressed;
-    assign key_pressed = ~key_db; // 1 when pressed
+    assign key_pressed = ~key_db;
 
     logic [3:0] key_fall;
     assign key_fall[0] = (key_prev[0] == 1'b1) && (key_db[0] == 1'b0);
@@ -81,31 +81,98 @@ module lab1(
 
     logic [7:0] offset;
 
-    localparam int REPEAT_DIV = 10_000_000; // 5 Hz at 50 MHz
-    logic [$clog2(REPEAT_DIV)-1:0] rep_cnt;
-    logic rep_tick;
+    // Auto-repeat parameters
+    localparam int CLK_HZ = 50_000_000;
+    localparam int INITIAL_DELAY_MS = 250; // hold for 250ms before repeating
+    localparam int REPEAT_HZ = 5;          // repeat speed after delay
+
+    localparam int INITIAL_DELAY_CYCLES = (CLK_HZ/1000) * INITIAL_DELAY_MS;
+    localparam int REPEAT_CYCLES        = (CLK_HZ / REPEAT_HZ);
+
+    localparam int ID_W = (INITIAL_DELAY_CYCLES <= 1) ? 1 : $clog2(INITIAL_DELAY_CYCLES);
+    localparam int RP_W = (REPEAT_CYCLES        <= 1) ? 1 : $clog2(REPEAT_CYCLES);
+
+    logic [ID_W-1:0] inc_delay_cnt, dec_delay_cnt;
+    logic [RP_W-1:0] inc_rep_cnt,   dec_rep_cnt;
+    logic inc_repeating, dec_repeating;
+
+    logic inc_pulse, dec_pulse, rst_pulse;
+    assign rst_pulse = key_fall[2];
 
     always_ff @(posedge CLOCK_50) begin
-        if (rep_cnt == REPEAT_DIV-1) begin
-            rep_cnt  <= '0;
-            rep_tick <= 1'b1;
+        inc_pulse <= 1'b0;
+        dec_pulse <= 1'b0;
+
+        // KEY0 auto-repeat (increment)
+        if (key_fall[0]) begin
+            inc_pulse      <= 1'b1;     // single step on press
+            inc_repeating  <= 1'b0;
+            inc_delay_cnt  <= '0;
+            inc_rep_cnt    <= '0;
+        end else if (!key_pressed[0]) begin
+            inc_repeating  <= 1'b0;     // released
+            inc_delay_cnt  <= '0;
+            inc_rep_cnt    <= '0;
         end else begin
-            rep_cnt  <= rep_cnt + 1'b1;
-            rep_tick <= 1'b0;
+            if (!inc_repeating) begin
+                if (inc_delay_cnt == INITIAL_DELAY_CYCLES-1) begin
+                    inc_repeating <= 1'b1;
+                    inc_delay_cnt <= '0;
+                    inc_rep_cnt   <= '0;
+                end else begin
+                    inc_delay_cnt <= inc_delay_cnt + 1'b1;
+                end
+            end else begin
+                if (inc_rep_cnt == REPEAT_CYCLES-1) begin
+                    inc_rep_cnt <= '0;
+                    inc_pulse   <= 1'b1; // repeat step
+                end else begin
+                    inc_rep_cnt <= inc_rep_cnt + 1'b1;
+                end
+            end
+        end
+
+        // KEY1 auto-repeat (decrement)
+        if (key_fall[1]) begin
+            dec_pulse      <= 1'b1;     // single step on press
+            dec_repeating  <= 1'b0;
+            dec_delay_cnt  <= '0;
+            dec_rep_cnt    <= '0;
+        end else if (!key_pressed[1]) begin
+            dec_repeating  <= 1'b0;     // released
+            dec_delay_cnt  <= '0;
+            dec_rep_cnt    <= '0;
+        end else begin
+            if (!dec_repeating) begin
+                if (dec_delay_cnt == INITIAL_DELAY_CYCLES-1) begin
+                    dec_repeating <= 1'b1;
+                    dec_delay_cnt <= '0;
+                    dec_rep_cnt   <= '0;
+                end else begin
+                    dec_delay_cnt <= dec_delay_cnt + 1'b1;
+                end
+            end else begin
+                if (dec_rep_cnt == REPEAT_CYCLES-1) begin
+                    dec_rep_cnt <= '0;
+                    dec_pulse   <= 1'b1; // repeat step
+                end else begin
+                    dec_rep_cnt <= dec_rep_cnt + 1'b1;
+                end
+            end
         end
     end
 
-    logic inc_pulse, dec_pulse, rst_pulse;
-    assign inc_pulse = key_fall[0] | (key_pressed[0] & rep_tick);
-    assign dec_pulse = key_fall[1] | (key_pressed[1] & rep_tick);
-    assign rst_pulse = key_fall[2];
-
+    // Saturating offset update (no wrap-around)
     always_ff @(posedge CLOCK_50) begin
         if (rst_pulse) begin
             offset <= 8'd0;
         end else begin
-            if (inc_pulse) offset <= offset + 8'd1;
-            if (dec_pulse) offset <= offset - 8'd1;
+            if (inc_pulse) begin
+                if (offset != 8'hFF) offset <= offset + 8'd1;
+            end
+            if (dec_pulse) begin
+                if (offset != 8'd0)  offset <= offset - 8'd1;
+            end
         end
     end
 
@@ -124,18 +191,15 @@ module lab1(
         else if (range_done_pulse) range_ready <= 1'b1;
     end
 
-    logic [9:0] base_latched;
-    always_ff @(posedge CLOCK_50) begin
-        if (go_pulse) base_latched <= base_n;
-    end
-
     logic [31:0] range_start;
     always_comb begin
-         if (range_ready) begin
-            range_start = {24'd0, offset};        
-         end else begin
-            range_start = {22'd0, base_n};       
-         end
+        if (go_pulse) begin
+            range_start = {22'd0, base_n};
+        end else if (range_ready) begin
+            range_start = {24'd0, offset};
+        end else begin
+            range_start = 32'd0;
+        end
     end
 
     range #(.RAM_WORDS(256), .RAM_ADDR_BITS(8)) u_range (
@@ -146,13 +210,19 @@ module lab1(
         .count (range_count)
     );
 
-    logic [15:0] count_reg;
+    logic [11:0] k_display;
     always_ff @(posedge CLOCK_50) begin
-        count_reg <= range_count;
+        if (!range_ready) begin
+            k_display <= 12'd0;
+        end
+        else if (n_display == 12'd0) begin
+            k_display <= 12'd0;   // force 000 when n = 0
+        end
+        else begin
+            k_display <= range_count[11:0];
+        end
     end
 
-    logic [11:0] k_display;
-    assign k_display = count_reg[11:0];
 
     hex7seg h0(.a(k_display[3:0]),   .y(HEX0));
     hex7seg h1(.a(k_display[7:4]),   .y(HEX1));
