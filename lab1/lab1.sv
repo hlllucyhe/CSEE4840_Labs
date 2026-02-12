@@ -1,55 +1,32 @@
-module debounce_keys #(
-    parameter int N_KEYS = 4,
-    parameter int CLK_HZ = 50_000_000,
-    parameter int DEBOUNCE_US = 1
-)(
-    input  logic                  clk,
-    input  logic [N_KEYS-1:0]      key_in,
-    output logic [N_KEYS-1:0]      key_db
-);
+// CSEE 4840 Lab 1: Run and Display Collatz Conjecture Iteration Counts
+//
+// Spring 2023
+//
+// By: Lucy He, Pengpeng Wang, Xiyuan Peng
+// Uni: lh3365, pw2660, xp2236
 
-    localparam int DEBOUNCE_CYCLES = (CLK_HZ / 1000000) * DEBOUNCE_US;
-    localparam int CNT_W = (DEBOUNCE_CYCLES <= 1) ? 1 : $clog2(DEBOUNCE_CYCLES);
+module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
+	     
+	     input logic [3:0] 	KEY, // Pushbuttons; KEY[0] is rightmost
 
-    logic [N_KEYS-1:0] key_ff0, key_ff1;
-    always_ff @(posedge clk) begin
-        key_ff0 <= key_in;
-        key_ff1 <= key_ff0;
-    end
+	     input logic [9:0] 	SW, // Switches; SW[0] is rightmost
 
-    logic [CNT_W-1:0] cnt [N_KEYS-1:0];
+	     // 7-segment LED displays; HEX0 is rightmost
+	     output logic [6:0] HEX0, HEX1, HEX2, HEX3, HEX4, HEX5,
 
-    integer i;
-    initial begin
-        key_db = {N_KEYS{1'b1}};
-        for (i = 0; i < N_KEYS; i++) cnt[i] = '0;
-    end
+	     output logic [9:0] LEDR // LEDs above the switches; LED[0] on right
+	     );
 
-    always_ff @(posedge clk) begin
-        for (i = 0; i < N_KEYS; i++) begin
-            if (key_ff1[i] == key_db[i]) begin
-                cnt[i] <= '0;
-            end else begin
-                if (cnt[i] == DEBOUNCE_CYCLES-1) begin
-                    key_db[i] <= key_ff1[i];
-                    cnt[i]    <= '0;
-                end else begin
-                    cnt[i] <= cnt[i] + 1'b1;
-                end
-            end
-        end
-    end
+   logic 			clk, go, done;   
+   logic [31:0] 		start;
+   logic [15:0] 		count;
 
-endmodule
-
-
-module lab1(
-    input  logic        CLOCK_50,
-    input  logic [3:0]   KEY,
-    input  logic [9:0]   SW,
-    output logic [6:0]   HEX0, HEX1, HEX2, HEX3, HEX4, HEX5,
-    output logic [9:0]   LEDR
-);
+   logic [11:0] 		n;
+   
+   assign clk = CLOCK_50;
+ 
+   range #(256, 8) // RAM_WORDS = 256, RAM_ADDR_BITS = 8)
+         r ( .* ); // Connect everything with matching names
 
     logic [9:0] base_n;
     assign base_n = SW[9:0];
@@ -66,7 +43,7 @@ module lab1(
     );
 
     logic [3:0] key_prev;
-    always_ff @(posedge CLOCK_50) begin
+    always_ff @(posedge clk) begin
         key_prev <= key_db;
     end
 
@@ -98,7 +75,7 @@ module lab1(
     logic inc_pulse, dec_pulse, rst_pulse;
     assign rst_pulse = key_fall[2] | key_fall[3];
 
-    always_ff @(posedge CLOCK_50) begin
+    always_ff @(posedge clk) begin
         inc_pulse <= 1'b0;
         dec_pulse <= 1'b0;
 
@@ -159,7 +136,7 @@ module lab1(
         end
     end
 
-    always_ff @(posedge CLOCK_50) begin
+    always_ff @(posedge clk) begin
         if (rst_pulse) begin
             offset <= 8'd0;
         end else begin
@@ -172,48 +149,34 @@ module lab1(
         end
     end
 
-    logic [11:0] n_display;
-    assign n_display = {2'b00, base_n} + {4'b0000, offset};
+    assign n = {2'b00, base_n} + {4'b0000, offset};
 
-    logic go_pulse;
-    assign go_pulse = key_fall[3];
-
-    logic range_done_pulse;
-    logic [15:0] range_count;
+    assign go = key_fall[3];
 
     logic range_ready;
-    always_ff @(posedge CLOCK_50) begin
-        if (go_pulse) range_ready <= 1'b0;
-        else if (range_done_pulse) range_ready <= 1'b1;
+    always_ff @(posedge clk) begin
+        if (go) range_ready <= 1'b0;
+        else if (done) range_ready <= 1'b1;
     end
 
-    logic [31:0] range_start;
     always_comb begin
-        if (go_pulse) begin
-            range_start = {22'd0, base_n};
+        if (go) begin
+            start = {22'd0, base_n};
         end else if (range_ready) begin
-            range_start = {24'd0, offset};
+            start = {24'd0, offset};
         end else begin
-            range_start = 32'd0;
+            start = 32'd0;
         end
     end
 
-    range #(.RAM_WORDS(256), .RAM_ADDR_BITS(8)) u_range (
-        .clk   (CLOCK_50),
-        .go    (go_pulse),
-        .start (range_start),
-        .done  (range_done_pulse),
-        .count (range_count)
-    );
-
     logic [11:0] k_display;
-    always_ff @(posedge CLOCK_50) begin
+    always_ff @(posedge clk) begin
         if (!range_ready) begin
             k_display <= 12'd0;
-        end else if (n_display == 12'd0) begin
+        end else if (n == 12'd0) begin
             k_display <= 12'd0;
         end else begin
-            k_display <= range_count[11:0];
+            k_display <= count[11:0];
         end
     end
 
@@ -232,13 +195,13 @@ module lab1(
     logic [BT_W-1:0] blink_tcnt;
     logic [BD_W-1:0] blink_dcnt;
 
-    always_ff @(posedge CLOCK_50) begin
-        if (go_pulse) begin
+    always_ff @(posedge clk) begin
+        if (go) begin
             blink_active <= 1'b0;
             blink_phase  <= 1'b1;
             blink_tcnt   <= '0;
             blink_dcnt   <= '0;
-        end else if (range_done_pulse) begin
+        end else if (done) begin
             blink_active <= 1'b1;
             blink_phase  <= 1'b1;
             blink_tcnt   <= '0;
@@ -282,10 +245,55 @@ module lab1(
     end
 
 
-    hex7seg h3(.a(n_display[3:0]),   .y(HEX3));
-    hex7seg h4(.a(n_display[7:4]),   .y(HEX4));
-    hex7seg h5(.a(n_display[11:8]),  .y(HEX5));
+    hex7seg h3(.a(n[3:0]),   .y(HEX3));
+    hex7seg h4(.a(n[7:4]),   .y(HEX4));
+    hex7seg h5(.a(n[11:8]),  .y(HEX5));
 
     assign LEDR = base_n;
+
+endmodule
+
+
+module debounce_keys #(
+    parameter int N_KEYS = 4,
+    parameter int CLK_HZ = 50_000_000,
+    parameter int DEBOUNCE_US = 1
+)(
+    input  logic                  clk,
+    input  logic [N_KEYS-1:0]      key_in,
+    output logic [N_KEYS-1:0]      key_db
+);
+
+    localparam int DEBOUNCE_CYCLES = (CLK_HZ / 1000000) * DEBOUNCE_US;
+    localparam int CNT_W = (DEBOUNCE_CYCLES <= 1) ? 1 : $clog2(DEBOUNCE_CYCLES);
+
+    logic [N_KEYS-1:0] key_ff0, key_ff1;
+    always_ff @(posedge clk) begin
+        key_ff0 <= key_in;
+        key_ff1 <= key_ff0;
+    end
+
+    logic [CNT_W-1:0] cnt [N_KEYS-1:0];
+
+    integer i;
+    initial begin
+        key_db = {N_KEYS{1'b1}};
+        for (i = 0; i < N_KEYS; i++) cnt[i] = '0;
+    end
+
+    always_ff @(posedge clk) begin
+        for (i = 0; i < N_KEYS; i++) begin
+            if (key_ff1[i] == key_db[i]) begin
+                cnt[i] <= '0;
+            end else begin
+                if (cnt[i] == DEBOUNCE_CYCLES-1) begin
+                    key_db[i] <= key_ff1[i];
+                    cnt[i]    <= '0;
+                end else begin
+                    cnt[i] <= cnt[i] + 1'b1;
+                end
+            end
+        end
+    end
 
 endmodule
