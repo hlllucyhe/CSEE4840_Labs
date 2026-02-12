@@ -59,7 +59,7 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
     logic [7:0] offset;
 
     localparam int CLK_HZ = 50_000_000;
-    localparam int INITIAL_DELAY_MS = 350;
+    localparam int INITIAL_DELAY_MS = 500;
     localparam int REPEAT_HZ = 5;
 
     localparam int INITIAL_DELAY_CYCLES = (CLK_HZ/1000) * INITIAL_DELAY_MS;
