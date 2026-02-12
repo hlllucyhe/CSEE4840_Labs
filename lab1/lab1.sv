@@ -1,14 +1,14 @@
 module debounce_keys #(
     parameter int N_KEYS = 4,
-    parameter int CLK_HZ = 25_000_000,
-    parameter int DEBOUNCE_MS = 10
+    parameter int CLK_HZ = 50_000_000,
+    parameter int DEBOUNCE_US = 1
 )(
     input  logic                  clk,
     input  logic [N_KEYS-1:0]      key_in,
     output logic [N_KEYS-1:0]      key_db
 );
 
-    localparam int DEBOUNCE_CYCLES = (CLK_HZ / 1000) * DEBOUNCE_MS;
+    localparam int DEBOUNCE_CYCLES = (CLK_HZ / 1000000) * DEBOUNCE_US;
     localparam int CNT_W = (DEBOUNCE_CYCLES <= 1) ? 1 : $clog2(DEBOUNCE_CYCLES);
 
     logic [N_KEYS-1:0] key_ff0, key_ff1;
@@ -57,8 +57,8 @@ module lab1(
     logic [3:0] key_db;
     debounce_keys #(
         .N_KEYS(4),
-        .CLK_HZ(25_000_000),
-        .DEBOUNCE_MS(1)
+        .CLK_HZ(50_000_000),
+        .DEBOUNCE_US(1)
     ) u_db (
         .clk   (CLOCK_50),
         .key_in(KEY),
@@ -268,6 +268,7 @@ module lab1(
     hex7seg h1(.a(k_display[7:4]),  .y(hex1_n));
     hex7seg h2(.a(k_display[11:8]), .y(hex2_n));
 
+    // blink when calculation done
     always_comb begin
        if (blink_active && !blink_phase) begin
           HEX0 = 7'b1111111;  // all segments off
@@ -285,11 +286,6 @@ module lab1(
     hex7seg h4(.a(n_display[7:4]),   .y(HEX4));
     hex7seg h5(.a(n_display[11:8]),  .y(HEX5));
 
-    always_comb begin
-        LEDR      = 10'd0;
-        LEDR[9]   = range_ready;
-        LEDR[8]   = range_done_pulse;
-        LEDR[7:0] = offset;
-    end
+    assign LEDR = base_n;
 
 endmodule
