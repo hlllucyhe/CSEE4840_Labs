@@ -24,10 +24,6 @@ module range
    logic [RAM_ADDR_BITS - 1:0] 	 num;         // The RAM address to write
    logic 			 running = 0; // True during the iterations
 
-   /* Replace this comment and the code below with your solution,
-      which should generate running, done, cgo, n, num, we, and din */
-
-   
    // State machine to control the Collatz iteration process
    always_ff @(posedge clk) begin
       if (go && !running) begin
@@ -41,36 +37,34 @@ module range
          we <= 0;
       end else if (running) begin
          if (cgo) begin
-            // First cycle after starting Collatz - deassert cgo
+            // reset cgo for next cycle
             cgo <= 0;
          end else if (we) begin
-            // Just wrote to RAM - prepare for next number
+            // reset for next number
             we <= 0;
             if (num == RAM_ADDR_BITS'(RAM_WORDS - 1)) begin
-               // Finished all iterations
+               // finished all numbers
                running <= 0;
                done <= 1;
             end else begin
-               // Start next number
+               // start next number
                num <= num + 1;
                n <= n + 1;
                din <= 1;
                cgo <= 1;
             end
          end else if (cdone) begin
-            // Collatz iteration complete - write count to RAM
+            // write count to RAM
             we <= 1;
          end else begin
-            // Counting iterations while Collatz is running
+            // count collatz iterations
             din <= din + 1;
          end
       end else if (done) begin
-         // One-cycle pulse for done
+         // reset done after one cycle
          done <= 0;
       end
    end
-   
-   /* Replace this comment and the code above with your solution */
 
    logic 			 we;                    // Write din to addr
    logic [15:0] 		 din;                   // Data to write
