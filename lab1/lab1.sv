@@ -28,41 +28,39 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
    range #(256, 8) // RAM_WORDS = 256, RAM_ADDR_BITS = 8)
          r ( .* ); // Connect everything with matching names
 
-    // Replace this comment and the code below it with your own code;
-    // read base n from switches
     logic [9:0] base_n;
     assign base_n = SW[9:0];
-    assign LEDR   = base_n;
 
-    // debounce keys
     logic [3:0] key_db;
+    debounce_keys #(
+        .N_KEYS(4),
+        .CLK_HZ(50_000_000),
+        .DEBOUNCE_US(1)
+    ) u_db (
+        .clk   (CLOCK_50),
+        .key_in(KEY),
+        .key_db(key_db)
+    );
 
-    debounce #(.DEBOUNCE_US(1)) db0(.clk(clk), .key_in(KEY[0]), .key_db(key_db[0]));
-    debounce #(.DEBOUNCE_US(1)) db1(.clk(clk), .key_in(KEY[1]), .key_db(key_db[1]));
-    debounce #(.DEBOUNCE_US(1)) db2(.clk(clk), .key_in(KEY[2]), .key_db(key_db[2]));
-    debounce #(.DEBOUNCE_US(1)) db3(.clk(clk), .key_in(KEY[3]), .key_db(key_db[3]));
-
-    // Edge detect (falling edge on active-low debounced key == press event)
     logic [3:0] key_prev;
     always_ff @(posedge clk) begin
         key_prev <= key_db;
     end
 
-    logic [3:0] key_pressed; // 1 when pressed
+    logic [3:0] key_pressed;
     assign key_pressed = ~key_db;
 
-    logic [3:0] key_fall; // 1-cycle pulse on press
+    logic [3:0] key_fall;
     assign key_fall[0] = (key_prev[0] == 1'b1) && (key_db[0] == 1'b0);
     assign key_fall[1] = (key_prev[1] == 1'b1) && (key_db[1] == 1'b0);
     assign key_fall[2] = (key_prev[2] == 1'b1) && (key_db[2] == 1'b0);
     assign key_fall[3] = (key_prev[3] == 1'b1) && (key_db[3] == 1'b0);
 
-    // control offset with KEY[0] and KEY[1]
     logic [7:0] offset;
 
-    localparam int CLK_HZ            = 50_000_000;
-    localparam int INITIAL_DELAY_MS  = 500;
-    localparam int REPEAT_HZ         = 5;
+    localparam int CLK_HZ = 50_000_000;
+    localparam int INITIAL_DELAY_MS = 500;
+    localparam int REPEAT_HZ = 5;
 
     localparam int INITIAL_DELAY_CYCLES = (CLK_HZ/1000) * INITIAL_DELAY_MS;
     localparam int REPEAT_CYCLES        = (CLK_HZ / REPEAT_HZ);
@@ -72,26 +70,24 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
 
     logic [ID_W-1:0] inc_delay_cnt, dec_delay_cnt;
     logic [RP_W-1:0] inc_rep_cnt,   dec_rep_cnt;
-    logic            inc_repeating, dec_repeating;
+    logic inc_repeating, dec_repeating;
 
     logic inc_pulse, dec_pulse, rst_pulse;
-    assign rst_pulse = key_fall[2] | key_fall[3]; // KEY2 or KEY3 press
+    assign rst_pulse = key_fall[2] | key_fall[3];
 
-    // Generate inc/dec pulses: short press + long-press repeat
     always_ff @(posedge clk) begin
         inc_pulse <= 1'b0;
         dec_pulse <= 1'b0;
 
-        // INC (KEY[0])
         if (key_fall[0]) begin
-            inc_pulse     <= 1'b1;
-            inc_repeating <= 1'b0;
-            inc_delay_cnt <= '0;
-            inc_rep_cnt   <= '0;
+            inc_pulse      <= 1'b1;
+            inc_repeating  <= 1'b0;
+            inc_delay_cnt  <= '0;
+            inc_rep_cnt    <= '0;
         end else if (!key_pressed[0]) begin
-            inc_repeating <= 1'b0;
-            inc_delay_cnt <= '0;
-            inc_rep_cnt   <= '0;
+            inc_repeating  <= 1'b0;
+            inc_delay_cnt  <= '0;
+            inc_rep_cnt    <= '0;
         end else begin
             if (!inc_repeating) begin
                 if (inc_delay_cnt == INITIAL_DELAY_CYCLES-1) begin
@@ -111,16 +107,15 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
             end
         end
 
-        // DEC (KEY[1])
         if (key_fall[1]) begin
-            dec_pulse     <= 1'b1;
-            dec_repeating <= 1'b0;
-            dec_delay_cnt <= '0;
-            dec_rep_cnt   <= '0;
+            dec_pulse      <= 1'b1;
+            dec_repeating  <= 1'b0;
+            dec_delay_cnt  <= '0;
+            dec_rep_cnt    <= '0;
         end else if (!key_pressed[1]) begin
-            dec_repeating <= 1'b0;
-            dec_delay_cnt <= '0;
-            dec_rep_cnt   <= '0;
+            dec_repeating  <= 1'b0;
+            dec_delay_cnt  <= '0;
+            dec_rep_cnt    <= '0;
         end else begin
             if (!dec_repeating) begin
                 if (dec_delay_cnt == INITIAL_DELAY_CYCLES-1) begin
@@ -141,7 +136,6 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
         end
     end
 
-    // Apply offset updates
     always_ff @(posedge clk) begin
         if (rst_pulse) begin
             offset <= 8'd0;
@@ -155,15 +149,13 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
         end
     end
 
-    // n display
     assign n = {2'b00, base_n} + {4'b0000, offset};
 
-    // control range with KEY[3]
     assign go = key_fall[3];
 
     logic range_ready;
     always_ff @(posedge clk) begin
-        if (go)       range_ready <= 1'b0;
+        if (go) range_ready <= 1'b0;
         else if (done) range_ready <= 1'b1;
     end
 
@@ -177,7 +169,6 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
         end
     end
 
-    // display count and handle 0 case
     logic [11:0] k_display;
     always_ff @(posedge clk) begin
         if (!range_ready) begin
@@ -189,17 +180,18 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
         end
     end
 
-    //blink after done range
-    localparam int BLINK_TOGGLE_HZ      = 4;
-    localparam int BLINK_DURATION_MS    = 1000;
-    localparam int BLINK_TOGGLE_CYCLES  = (CLK_HZ / BLINK_TOGGLE_HZ);
-    localparam int BLINK_DURATION_CYCLES= (CLK_HZ / 1000) * BLINK_DURATION_MS;
+    // Blink the right three HEX digits after computation completes
+    localparam int BLINK_TOGGLE_HZ = 4;        // blink speed
+    localparam int BLINK_DURATION_MS = 1000;   // total blink duration
 
-    localparam int BT_W = (BLINK_TOGGLE_CYCLES   <= 1) ? 1 : $clog2(BLINK_TOGGLE_CYCLES);
-    localparam int BD_W = (BLINK_DURATION_CYCLES <= 1) ? 1 : $clog2(BLINK_DURATION_CYCLES);
+    localparam int BLINK_TOGGLE_CYCLES = (CLK_HZ / BLINK_TOGGLE_HZ);
+    localparam int BLINK_DURATION_CYCLES = (CLK_HZ / 1000) * BLINK_DURATION_MS;
 
-    logic        blink_active;
-    logic        blink_phase; // 1=show, 0=hide
+    localparam int BT_W = (BLINK_TOGGLE_CYCLES  <= 1) ? 1 : $clog2(BLINK_TOGGLE_CYCLES);
+    localparam int BD_W = (BLINK_DURATION_CYCLES<= 1) ? 1 : $clog2(BLINK_DURATION_CYCLES);
+
+    logic blink_active;
+    logic blink_phase; // 1 = show, 0 = hide
     logic [BT_W-1:0] blink_tcnt;
     logic [BD_W-1:0] blink_dcnt;
 
@@ -233,66 +225,73 @@ module lab1( input logic        CLOCK_50,  // 50 MHz Clock input
         end
     end
 
-    // displays
-    logic [6:0] hex0_k, hex1_k, hex2_k;
-    hex7seg h0(.a(k_display[3:0]),  .y(hex0_k));
-    hex7seg h1(.a(k_display[7:4]),  .y(hex1_k));
-    hex7seg h2(.a(k_display[11:8]), .y(hex2_k));
+    logic [6:0] hex0_n, hex1_n, hex2_n;
 
+    hex7seg h0(.a(k_display[3:0]),  .y(hex0_n));
+    hex7seg h1(.a(k_display[7:4]),  .y(hex1_n));
+    hex7seg h2(.a(k_display[11:8]), .y(hex2_n));
+
+    // blink when calculation done
     always_comb begin
-        if (blink_active && !blink_phase) begin
-            HEX0 = 7'b1111111;
-            HEX1 = 7'b1111111;
-            HEX2 = 7'b1111111;
-        end else begin
-            HEX0 = hex0_k;
-            HEX1 = hex1_k;
-            HEX2 = hex2_k;
-        end
+       if (blink_active && !blink_phase) begin
+          HEX0 = 7'b1111111;  // all segments off
+          HEX1 = 7'b1111111;
+          HEX2 = 7'b1111111;
+       end else begin
+          HEX0 = hex0_n;
+          HEX1 = hex1_n;
+          HEX2 = hex2_n;
+       end
     end
 
-    hex7seg h3(.a(n[3:0]),  .y(HEX3));
-    hex7seg h4(.a(n[7:4]),  .y(HEX4));
-    hex7seg h5(.a(n[11:8]), .y(HEX5));
+
+    hex7seg h3(.a(n[3:0]),   .y(HEX3));
+    hex7seg h4(.a(n[7:4]),   .y(HEX4));
+    hex7seg h5(.a(n[11:8]),  .y(HEX5));
+
+    assign LEDR = base_n;
 
 endmodule
 
-module debounce #(
-    parameter int CLK_HZ      = 50_000_000,
+
+module debounce_keys #(
+    parameter int N_KEYS = 4,
+    parameter int CLK_HZ = 50_000_000,
     parameter int DEBOUNCE_US = 1
 )(
-    input  logic clk,
-    input  logic key_in,  // raw active-low from board
-    output logic key_db   // debounced active-low
+    input  logic                  clk,
+    input  logic [N_KEYS-1:0]      key_in,
+    output logic [N_KEYS-1:0]      key_db
 );
 
-    // 2-flop synchronizer
-    logic ff0, ff1;
-    always_ff @(posedge clk) begin
-        ff0 <= key_in;
-        ff1 <= ff0;
-    end
-
-    localparam int DEBOUNCE_CYCLES = (CLK_HZ/1_000_000) * DEBOUNCE_US;
+    localparam int DEBOUNCE_CYCLES = (CLK_HZ / 1000000) * DEBOUNCE_US;
     localparam int CNT_W = (DEBOUNCE_CYCLES <= 1) ? 1 : $clog2(DEBOUNCE_CYCLES);
 
-    logic [CNT_W-1:0] cnt;
+    logic [N_KEYS-1:0] key_ff0, key_ff1;
+    always_ff @(posedge clk) begin
+        key_ff0 <= key_in;
+        key_ff1 <= key_ff0;
+    end
 
-    // Start unpressed to match typical board behavior in simulation
+    logic [CNT_W-1:0] cnt [N_KEYS-1:0];
+
+    integer i;
     initial begin
-        key_db = 1'b1;
-        cnt    = '0;
+        key_db = {N_KEYS{1'b1}};
+        for (i = 0; i < N_KEYS; i++) cnt[i] = '0;
     end
 
     always_ff @(posedge clk) begin
-        if (ff1 == key_db) begin
-            cnt <= '0;
-        end else begin
-            if (cnt == DEBOUNCE_CYCLES-1) begin
-                key_db <= ff1;
-                cnt    <= '0;
+        for (i = 0; i < N_KEYS; i++) begin
+            if (key_ff1[i] == key_db[i]) begin
+                cnt[i] <= '0;
             end else begin
-                cnt <= cnt + 1'b1;
+                if (cnt[i] == DEBOUNCE_CYCLES-1) begin
+                    key_db[i] <= key_ff1[i];
+                    cnt[i]    <= '0;
+                end else begin
+                    cnt[i] <= cnt[i] + 1'b1;
+                end
             end
         end
     end
