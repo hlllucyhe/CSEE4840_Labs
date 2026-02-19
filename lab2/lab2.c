@@ -55,6 +55,9 @@ int main()
     exit(1);
   }
 
+  /* Clear screen at startup */
+  memset(framebuffer, 0, fb_finfo.smem_len);
+
   /* Draw rows of asterisks across the top and bottom of the screen */
   for (col = 0 ; col < 64 ; col++) {
     fbputchar('*', 0, col);
