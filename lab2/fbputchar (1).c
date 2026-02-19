@@ -1,14 +1,6 @@
 /*
  * fbputchar: Framebuffer character generator
  *
- * Enhanced version for Lab 2 with:
- * - Screen clearing
- * - Horizontal line drawing
- * - Text scrolling
- * - Cursor display
- * - Color control
- * - Text wrapping
- *
  * Assumes 32bpp
  *
  * References:
@@ -26,7 +18,6 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <string.h>
-
 #include <linux/fb.h>
 
 #define FBDEV "/dev/fb0"
@@ -35,16 +26,18 @@
 #define FONT_HEIGHT 16
 #define BITS_PER_PIXEL 32
 
+#define SCREEN_ROWS 24
+#define SCREEN_COLS 64
+
 struct fb_var_screeninfo fb_vinfo;
 struct fb_fix_screeninfo fb_finfo;
 unsigned char *framebuffer;
 static unsigned char font[];
 
-// Global variables for screen dimensions
-int screen_width_pixels;
-int screen_height_pixels;
-int screen_cols;
-int screen_rows;
+/* Cursor position and visibility */
+static int cursor_row = 22;
+static int cursor_col = 0;
+static int cursor_visible = 1;
 
 /*
  * Open the framebuffer to prepare it to be written to.  Returns 0 on success
@@ -67,160 +60,98 @@ int fbopen()
 		     MAP_SHARED, fd, 0);
   if (framebuffer == (unsigned char *)-1) return FBOPEN_MMAP;
 
-  // Calculate screen dimensions
-  screen_width_pixels = fb_vinfo.xres;
-  screen_height_pixels = fb_vinfo.yres;
-  screen_cols = screen_width_pixels / (FONT_WIDTH * 2);
-  screen_rows = screen_height_pixels / (FONT_HEIGHT * 2);
-
   return 0;
 }
 
 /*
- * Get screen dimensions in characters
- */
-void fbget_dimensions(int *rows, int *cols)
-{
-  if (rows) *rows = screen_rows;
-  if (cols) *cols = screen_cols;
-}
-
-/*
- * Clear the entire framebuffer (fill with black)
+ * Clear the entire screen (fill with black)
  */
 void fbclear()
 {
-  memset(framebuffer, 0, fb_finfo.smem_len);
-}
-
-/*
- * Clear a specific region of the screen (in character coordinates)
- */
-void fbclear_region(int start_row, int start_col, int end_row, int end_col)
-{
   int row, col;
-  for (row = start_row; row <= end_row; row++) {
-    for (col = start_col; col <= end_col; col++) {
-      fbputchar(' ', row, col, 255, 255, 255);
+  for (row = 0; row < SCREEN_ROWS; row++) {
+    for (col = 0; col < SCREEN_COLS; col++) {
+      fbputchar(' ', row, col);
     }
   }
 }
 
 /*
- * Draw a horizontal line across the screen at the given row
+ * Draw a horizontal line of asterisks at the given row
  */
-void fbdraw_hline(int row, unsigned char r, unsigned char g, unsigned char b)
+void fbhhline(int row)
+{
+  int col;
+  for (col = 0; col < SCREEN_COLS; col++) {
+    fbputchar('*', row, col);
+  }
+}
+
+/*
+ * Draw a cursor (white box) at the given position
+ */
+static void draw_cursor_at(int row, int col, int draw)
 {
   int x, y;
-  int y_pixel = row * FONT_HEIGHT * 2;
+  unsigned char *left = framebuffer +
+    (row * FONT_HEIGHT + fb_vinfo.yoffset) * fb_finfo.line_length +
+    (col * FONT_WIDTH + fb_vinfo.xoffset) * BITS_PER_PIXEL / 8;
   
-  for (y = 0; y < 2; y++) {
-    unsigned char *pixel = framebuffer + 
-      (y_pixel + y + fb_vinfo.yoffset) * fb_finfo.line_length +
-      fb_vinfo.xoffset * BITS_PER_PIXEL / 8;
-    
-    for (x = 0; x < screen_width_pixels; x++) {
-      pixel[0] = r;
-      pixel[1] = g;
-      pixel[2] = b;
-      pixel[3] = 0;
+  for (y = 0; y < FONT_HEIGHT; y++, left += fb_finfo.line_length) {
+    unsigned char *pixel = left;
+    for (x = 0; x < FONT_WIDTH; x++) {
+      if (draw) {
+        /* Draw white box for cursor */
+        pixel[0] = 255; /* Red */
+        pixel[1] = 255; /* Green */
+        pixel[2] = 255; /* Blue */
+      }
       pixel += 4;
     }
   }
 }
 
 /*
- * Scroll a region of the screen up by one row
- * start_row: first row of the region
- * end_row: last row of the region
+ * Set cursor position
  */
-void fbscroll_region(int start_row, int end_row)
+void fbmovecursor(int row, int col)
 {
-  int y_start = start_row * FONT_HEIGHT * 2;
-  int y_end = (end_row + 1) * FONT_HEIGHT * 2;
-  int lines_to_copy = (end_row - start_row) * FONT_HEIGHT * 2;
-  int bytes_per_line = fb_finfo.line_length;
+  /* Erase old cursor */
+  if (cursor_visible) {
+    draw_cursor_at(cursor_row, cursor_col, 0);
+    fbputchar(' ', cursor_row, cursor_col); /* Restore character */
+  }
   
-  // Copy all lines up by one character height
-  unsigned char *dest = framebuffer + 
-    (y_start + fb_vinfo.yoffset) * bytes_per_line;
-  unsigned char *src = framebuffer + 
-    (y_start + FONT_HEIGHT * 2 + fb_vinfo.yoffset) * bytes_per_line;
+  cursor_row = row;
+  cursor_col = col;
   
-  memmove(dest, src, lines_to_copy * bytes_per_line);
-  
-  // Clear the last row
-  memset(framebuffer + ((y_end - FONT_HEIGHT * 2) + fb_vinfo.yoffset) * bytes_per_line,
-         0, FONT_HEIGHT * 2 * bytes_per_line);
-}
-
-/*
- * Draw a cursor at the given position
- * type: 0 = vertical bar, 1 = underline, 2 = block
- */
-void fbdraw_cursor(int row, int col, int type, unsigned char r, unsigned char g, unsigned char b)
-{
-  int x, y;
-  unsigned char *left = framebuffer +
-    (row * FONT_HEIGHT * 2 + fb_vinfo.yoffset) * fb_finfo.line_length +
-    (col * FONT_WIDTH * 2 + fb_vinfo.xoffset) * BITS_PER_PIXEL / 8;
-    
-  switch(type) {
-    case 0: // Vertical bar (left edge)
-      for (y = 0; y < FONT_HEIGHT * 2; y++, left += fb_finfo.line_length) {
-        unsigned char *pixel = left;
-        for (x = 0; x < 2; x++) {
-          pixel[0] = r;
-          pixel[1] = g;
-          pixel[2] = b;
-          pixel[3] = 0;
-          pixel += 4;
-        }
-      }
-      break;
-      
-    case 1: // Underline (bottom)
-      left += fb_finfo.line_length * (FONT_HEIGHT * 2 - 2);
-      for (y = 0; y < 2; y++, left += fb_finfo.line_length) {
-        unsigned char *pixel = left;
-        for (x = 0; x < FONT_WIDTH * 2; x++) {
-          pixel[0] = r;
-          pixel[1] = g;
-          pixel[2] = b;
-          pixel[3] = 0;
-          pixel += 4;
-        }
-      }
-      break;
-      
-    case 2: // Block (fill entire character)
-      for (y = 0; y < FONT_HEIGHT * 2; y++, left += fb_finfo.line_length) {
-        unsigned char *pixel = left;
-        for (x = 0; x < FONT_WIDTH * 2; x++) {
-          pixel[0] = r;
-          pixel[1] = g;
-          pixel[2] = b;
-          pixel[3] = 0;
-          pixel += 4;
-        }
-      }
-      break;
+  /* Draw new cursor if visible */
+  if (cursor_visible) {
+    draw_cursor_at(cursor_row, cursor_col, 1);
   }
 }
 
 /*
- * Erase cursor at the given position by redrawing the character there
+ * Show/hide cursor
  */
-void fberase_cursor(int row, int col, char c)
+void fbdrawcursor(int row, int col, int visible)
 {
-  fbputchar(c, row, col, 255, 255, 255);
+  if (cursor_visible == visible) return;
+  
+  cursor_visible = visible;
+  if (visible) {
+    draw_cursor_at(cursor_row, cursor_col, 1);
+  } else {
+    draw_cursor_at(cursor_row, cursor_col, 0);
+    fbputchar(' ', cursor_row, cursor_col);
+  }
 }
 
 /*
- * Draw the given character at the given row/column with specified color.
+ * Draw the given character at the given row/column.
  * fbopen() must be called first.
  */
-void fbputchar_color(char c, int row, int col, unsigned char r, unsigned char g, unsigned char b)
+void fbputchar(char c, int row, int col)
 {
   int x, y;
   unsigned char pixels, *pixelp = font + FONT_HEIGHT * c;
@@ -234,9 +165,9 @@ void fbputchar_color(char c, int row, int col, unsigned char r, unsigned char g,
     mask = 0x80;
     for (x = 0 ; x < FONT_WIDTH ; x++) {
       if (pixels & mask) {	
-	pixel[0] = r;
-        pixel[1] = g;
-        pixel[2] = b;
+	pixel[0] = 255; /* Red */
+        pixel[1] = 255; /* Green */
+        pixel[2] = 255; /* Blue */
         pixel[3] = 0;
       } else {
 	pixel[0] = 0;
@@ -246,9 +177,9 @@ void fbputchar_color(char c, int row, int col, unsigned char r, unsigned char g,
       }
       pixel += 4;
       if (pixels & mask) {
-	pixel[0] = r;
-        pixel[1] = g;
-        pixel[2] = b;
+	pixel[0] = 255; /* Red */
+        pixel[1] = 255; /* Green */
+        pixel[2] = 255; /* Blue */
         pixel[3] = 0;
       } else {
 	pixel[0] = 0;
@@ -264,46 +195,13 @@ void fbputchar_color(char c, int row, int col, unsigned char r, unsigned char g,
 }
 
 /*
- * Draw the given character at the given row/column (white on black).
- * fbopen() must be called first.
- */
-void fbputchar(char c, int row, int col, unsigned char r, unsigned char g, unsigned char b)
-{
-  fbputchar_color(c, row, col, r, g, b);
-}
-
-/*
- * Draw the given string at the given row/column with wrapping.
- * Returns the number of lines used.
- */
-int fbputs_wrap(const char *s, int row, int col, int max_col, unsigned char r, unsigned char g, unsigned char b)
-{
-  char c;
-  int current_col = col;
-  int current_row = row;
-  int lines_used = 1;
-  
-  while ((c = *s++) != 0) {
-    if (c == '\n' || current_col > max_col) {
-      current_row++;
-      current_col = col;
-      lines_used++;
-      if (c == '\n') continue;
-    }
-    fbputchar_color(c, current_row, current_col++, r, g, b);
-  }
-  
-  return lines_used;
-}
-
-/*
  * Draw the given string at the given row/column.
  * String must fit on a single line: wrap-around is not handled.
  */
 void fbputs(const char *s, int row, int col)
 {
   char c;
-  while ((c = *s++) != 0) fbputchar(c, row, col++, 255, 255, 255);
+  while ((c = *s++) != 0) fbputchar(c, row, col++);
 }
 
 /* 8 X 16 console font from /lib/kbd/consolefonts/lat0-16.psfu.gz
