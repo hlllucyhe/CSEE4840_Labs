@@ -1,6 +1,6 @@
 /*
  *
- * CSEE 4840 Lab 2 for 2019
+ * CSEE 4840 Lucy He/lh3365, Xiyuan Peng/xp2236, Pengpeng Wang/pw2660
  *
  * Name/UNI: Please Changeto Yourname (pcy2301)
  */
