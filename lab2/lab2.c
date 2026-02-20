@@ -420,35 +420,30 @@ static void send_input_line(void) {
     chat_print_line(me_line);
 
     /* send input + newline in a single buffer and ensure all bytes are written */
-    {
-        char sendBuf[INPUT_MAX_LEN + 2]; /* input + newline */
-        int sendLen = 0;
+    char sendBuf[INPUT_MAX_LEN + 2]; /* input + newline */
+    int sendLen = 0;
 
-        if (input_len > 0) {
-            memcpy(sendBuf, input_buf, (size_t)input_len);
-            sendLen = input_len;
-        }
+    memcpy(sendBuf, input_buf, (size_t)input_len);
+    sendLen = input_len;
 
-        sendBuf[sendLen++] = '\n';
+    sendBuf[sendLen++] = '\n';
 
-        /* 🔥 新增：保存刚发送的内容 */
-        memcpy(last_sent, sendBuf, (size_t)sendLen);
-        last_sent[sendLen] = '\0';
+    /* save last sent line so we can ignore our own echo */
+    memcpy(last_sent, sendBuf, (size_t)sendLen);
+    last_sent[sendLen] = '\0';
 
-        int sent = 0;
-        while (sent < sendLen) {
-            ssize_t w = write(sockfd, sendBuf + sent, (size_t)(sendLen - sent));
-            if (w <= 0) break; /* on error or interrupt, give up */
-            sent += (int)w;
-        }
+    int sent = 0;
+    while (sent < sendLen) {
+        ssize_t w = write(sockfd, sendBuf + sent, (size_t)(sendLen - sent));
+        if (w <= 0) break;
+        sent += (int)w;
     }
-}
 
-  /* Fully clear the input buffer to avoid leftover data being re-sent */
-  memset(input_buf, 0, sizeof(input_buf));
-  input_len = 0;
-  cursor_pos = 0;
-  refresh_input_area();
+    /* clear the input buffer after sending */
+    memset(input_buf, 0, sizeof(input_buf));
+    input_len = 0;
+    cursor_pos = 0;
+    refresh_input_area();
 }
 
 void *network_thread_f(void *ignored)
@@ -489,7 +484,7 @@ void *network_thread_f(void *ignored)
       recvBuf[n] = '\0';
 
       if (strcmp(recvBuf, last_sent) == 0) {
-          continue;  // 忽略自己的广播
+          continue;  // ignore own broadcast
       }
 
       chat_print_line(recvBuf);
