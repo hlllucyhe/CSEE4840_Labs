@@ -427,12 +427,22 @@ void *network_thread_f(void *ignored)
       }
   }*/
  
-  while ( (n = read(sockfd, &recvBuf, BUFFER_SIZE - 1)) > 0 ) {
+  /*while ((n = read(sockfd, &recvBuf, BUFFER_SIZE - 1)) > 0) {
     recvBuf[n] = '\0';
     printf("%s", recvBuf);
     chat_print_line(recvBuf);
   }
+  */
+  while ((n = read(sockfd, recvBuf, BUFFER_SIZE - 1)) > 0) {
+      recvBuf[n] = '\0';
 
+      // 如果是自己刚发的那条，就跳过
+      if (strncmp(recvBuf, input_buf, strlen(input_buf)) == 0) {
+          continue;
+      }
+
+      chat_print_line(recvBuf);
+  }
   return NULL;
 }
 
