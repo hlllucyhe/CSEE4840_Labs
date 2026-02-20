@@ -1,4 +1,4 @@
-/*
+ï»¿/*
  *
  * CSEE 4840
  *
@@ -41,7 +41,7 @@ static int chat_cursor = CHAT_TOP;
 #define INPUT_MAX_LEN ((SCREEN_COLS - 2) + SCREEN_COLS) /* first row has "> " prompt */
 static char input_buf[INPUT_MAX_LEN + 1];
 static int input_len = 0;
-
+static char last_sent[INPUT_MAX_LEN + 2];
 /* In-memory chat buffer to support wrapping and scrolling */
 #define MAX_CHAT_LINES (CHAT_BOTTOM - CHAT_TOP + 1)
 static char chat_lines[MAX_CHAT_LINES][SCREEN_COLS + 1];
@@ -367,29 +367,36 @@ static int should_accept_key(uint8_t kc, uint8_t mod) {
 
 /* Send current input buffer to server and also record in chat area */
 static void send_input_line(void) {
-  if (input_len <= 0) return;
+    if (input_len <= 0) return;
 
-  char me_line[SCREEN_COLS + 32];
-  snprintf(me_line, sizeof(me_line), "me: %s", input_buf);
-  chat_print_line(me_line);
+    char me_line[SCREEN_COLS + 32];
+    snprintf(me_line, sizeof(me_line), "me: %s", input_buf);
+    chat_print_line(me_line);
 
-  /* send input + newline in a single buffer and ensure all bytes are written */
-  {
-    char sendBuf[INPUT_MAX_LEN + 2]; /* input + newline */
-    int sendLen = 0;
-    if (input_len > 0) {
-      memcpy(sendBuf, input_buf, (size_t)input_len);
-      sendLen = input_len;
+    /* send input + newline in a single buffer and ensure all bytes are written */
+    {
+        char sendBuf[INPUT_MAX_LEN + 2]; /* input + newline */
+        int sendLen = 0;
+
+        if (input_len > 0) {
+            memcpy(sendBuf, input_buf, (size_t)input_len);
+            sendLen = input_len;
+        }
+
+        sendBuf[sendLen++] = '\n';
+
+        /* ğŸ”¥ æ–°å¢ï¼šä¿å­˜åˆšå‘é€çš„å†…å®¹ */
+        memcpy(last_sent, sendBuf, (size_t)sendLen);
+        last_sent[sendLen] = '\0';
+
+        int sent = 0;
+        while (sent < sendLen) {
+            ssize_t w = write(sockfd, sendBuf + sent, (size_t)(sendLen - sent));
+            if (w <= 0) break; /* on error or interrupt, give up */
+            sent += (int)w;
+        }
     }
-    sendBuf[sendLen++] = '\n';
-
-    int sent = 0;
-    while (sent < sendLen) {
-      ssize_t w = write(sockfd, sendBuf + sent, (size_t)(sendLen - sent));
-      if (w <= 0) break; /* on error or interrupt, give up */
-      sent += (int)w;
-    }
-  }
+}
 
   /* Fully clear the input buffer to avoid leftover data being re-sent */
   memset(input_buf, 0, sizeof(input_buf));
@@ -436,9 +443,8 @@ void *network_thread_f(void *ignored)
   while ((n = read(sockfd, recvBuf, BUFFER_SIZE - 1)) > 0) {
       recvBuf[n] = '\0';
 
-      // Èç¹ûÊÇ×Ô¼º¸Õ·¢µÄÄÇÌõ£¬¾ÍÌø¹ı
-      if (strncmp(recvBuf, input_buf, strlen(input_buf)) == 0) {
-          continue;
+      if (strcmp(recvBuf, last_sent) == 0) {
+          continue;  // å¿½ç•¥è‡ªå·±çš„å¹¿æ’­
       }
 
       chat_print_line(recvBuf);
