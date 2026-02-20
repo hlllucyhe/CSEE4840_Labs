@@ -54,6 +54,7 @@ static void refresh_input_area(void);
 static char hid_to_ascii(uint8_t, uint8_t);
 static int should_accept_key(uint8_t, uint8_t);
 static void send_input_line(void);
+static int cursor_pos = 0; 
 
 /*
  * References:
@@ -96,6 +97,7 @@ int main()
   input_len = 0;
   input_buf[0] = '\0';
   refresh_input_area();
+  cursor_pos = 0;
 
   /* Draw rows of asterisks across the top and bottom of the screen */
   /*for (col = 0 ; col < 64 ; col++) {
@@ -152,6 +154,18 @@ int main()
     // Ignore repeats while holding a key (optional but recommended)
     if (!should_accept_key(kc, mod)) continue;
 
+    // Arrow keys: update cursor position 
+    if (kc == 0x50) { // left arrow
+      if (cursor_pos > 0) cursor_pos--;
+      refresh_input_area();
+      continue;
+    }
+    if (kc == 0x4F) { //right arrow
+      if (cursor_pos < input_len) cursor_pos++;
+      refresh_input_area();
+      continue;
+    }
+
     // Convert HID keycode to ASCII
     char ch = hid_to_ascii(kc, mod);
     if (ch == 0) continue;
@@ -160,16 +174,28 @@ int main()
       send_input_line();
     } 
     else if (ch == '\b') {        // Backspace
-      if (input_len > 0) {
-      input_len--;
-      input_buf[input_len] = '\0';
-      refresh_input_area();
+      if (cursor_pos > 0) {
+        //delete at cursor position
+        memmove(&input_buf[cursor_pos - 1],
+                &input_buf[cursor_pos],
+                (size_t)(input_len - cursor_pos + 1)); /* include '\0' */
+        input_len--;
+        cursor_pos--;
+        //input_buf[input_len] = '\0';
+        refresh_input_area();
       }
     }
     else if (ch >= 32 && ch <= 126) { // Printable
       if (input_len < INPUT_MAX_LEN) {
-        input_buf[input_len++] = ch;
-        input_buf[input_len] = '\0';
+        // insert at cursor position
+        memmove(&input_buf[cursor_pos + 1],
+                &input_buf[cursor_pos],
+                (size_t)(input_len - cursor_pos + 1)); /* include '\0' */
+        input_buf[cursor_pos] = ch;
+        input_len++;
+        cursor_pos++;        
+        //input_buf[input_len++] = ch;
+        //input_buf[input_len] = '\0';
         refresh_input_area();
       }
     }
@@ -200,6 +226,8 @@ static void draw_divider(void) {
 
 static void chat_print_line(const char *s) {
   pthread_mutex_lock(&fb_lock);
+  if (cursor_pos < 0) cursor_pos = 0;
+  if (cursor_pos > input_len) cursor_pos = input_len;
 
   /* Build wrapped lines from input `s` */
   char cur[SCREEN_COLS + 1];
@@ -302,6 +330,24 @@ static void refresh_input_area(void) {
   }
   fbputs(line2, INPUT_ROW2, 0);
 
+  // Draw cursor (simple visible marker) 
+  {
+    int first_cap = SCREEN_COLS - 2;          //chars available after "> " 
+    int row, col;
+
+    if (cursor_pos <= first_cap) {
+      row = INPUT_ROW1;
+      col = 2 + cursor_pos;
+      if (col >= SCREEN_COLS) col = SCREEN_COLS - 1;
+    } else {
+      row = INPUT_ROW2;
+      col = cursor_pos - first_cap;
+      if (col >= SCREEN_COLS) col = SCREEN_COLS - 1;
+    }
+
+    fbputchar('|', row, col);
+  }
+
   pthread_mutex_unlock(&fb_lock);
 }
 
@@ -401,10 +447,9 @@ static void send_input_line(void) {
   /* Fully clear the input buffer to avoid leftover data being re-sent */
   memset(input_buf, 0, sizeof(input_buf));
   input_len = 0;
+  cursor_pos = 0;
   refresh_input_area();
 }
-
-
 
 void *network_thread_f(void *ignored)
 {
