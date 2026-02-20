@@ -202,7 +202,17 @@ static void chat_print_line(const char *s) {
   clear_row(chat_cursor);
 
   char tmp[SCREEN_COLS + 1];
-  snprintf(tmp, sizeof(tmp), "%.*s", SCREEN_COLS, s);
+  // snprintf(tmp, sizeof(tmp), "%.*s", SCREEN_COLS, s);
+  int j = 0;
+
+  for (int i = 0; s[i] != '\0' && j < SCREEN_COLS; i++) {
+      if (s[i] == '\n' || s[i] == '\r')
+          continue;   // skip newline characters
+      tmp[j++] = s[i];
+  }
+
+  tmp[j] = '\0';
+
   fbputs(tmp, chat_cursor, 0);
 
   chat_cursor++;
@@ -288,7 +298,7 @@ static void send_input_line(void) {
   if (input_len <= 0) return;
 
   char me_line[SCREEN_COLS + 32];
-  snprintf(me_line, sizeof(me_line), "me: %s\n", input_buf);
+  snprintf(me_line, sizeof(me_line), "me: %s", input_buf);
   chat_print_line(me_line);
 
   write(sockfd, input_buf, (size_t)input_len);
@@ -317,7 +327,7 @@ void *network_thread_f(void *ignored)
           if (c == '\n') {
               lineBuf[lineLen] = '\0';
               if (lineLen > 0) {
-                  chat_print_line(lineBuf);
+             chat_print_line(lineBuf);
               }
               lineLen = 0;
           } else {
