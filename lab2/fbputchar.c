@@ -34,7 +34,8 @@ static unsigned char font[];
 
 /*clear the screen*/
 void fbclear(void)
-{
+
+{   
     memset(framebuffer, 0, fb_finfo.smem_len);
 }
 
