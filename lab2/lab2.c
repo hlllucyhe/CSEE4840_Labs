@@ -345,7 +345,7 @@ static void refresh_input_area(void) {
       if (col >= SCREEN_COLS) col = SCREEN_COLS - 1;
     }
 
-    fbputchar('|', row, col);
+    fbputchar('_ ', row, col);
   }
 
   pthread_mutex_unlock(&fb_lock);
@@ -460,8 +460,8 @@ void *network_thread_f(void *ignored)
   while ((n = read(sockfd, recvBuf, BUFFER_SIZE - 1)) > 0) {
       recvBuf[n] = '\0';
 
-      if (strcmp(recvBuf, last_sent) == 0) {
-          continue;  // ignore own broadcast
+      if (strstr(recvBuf, last_sent) != NULL) {
+          continue;
       }
 
       chat_print_line(recvBuf);
