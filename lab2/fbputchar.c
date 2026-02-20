@@ -19,6 +19,7 @@
 #include <sys/ioctl.h>
 
 #include <linux/fb.h>
+#include <string.h>
 
 #define FBDEV "/dev/fb0"
 
@@ -30,6 +31,13 @@ struct fb_var_screeninfo fb_vinfo;
 struct fb_fix_screeninfo fb_finfo;
 unsigned char *framebuffer;
 static unsigned char font[];
+
+/*clear the screen*/
+void fbclear(void)
+{   
+    memset(framebuffer, 0, fb_finfo.smem_len);
+}
+
 
 /*
  * Open the framebuffer to prepare it to be written to.  Returns 0 on success
