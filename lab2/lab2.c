@@ -32,11 +32,14 @@
 #define CHAT_BOTTOM (DIVIDER_ROW - 1)
 #define INPUT_ROW1 (DIVIDER_ROW + 1)
 #define INPUT_ROW2 (DIVIDER_ROW + 2)
+#define INPUT_ROWS 2
 
 static pthread_mutex_t fb_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int chat_cursor = CHAT_TOP;
-static char input_buf[SCREEN_COLS + 1];
+/* allow input to wrap across two input rows */
+#define INPUT_MAX_LEN ((SCREEN_COLS - 2) + SCREEN_COLS) /* first row has "> " prompt */
+static char input_buf[INPUT_MAX_LEN + 1];
 static int input_len = 0;
 
 /* In-memory chat buffer to support wrapping and scrolling */
@@ -164,7 +167,7 @@ int main()
       }
     }
     else if (ch >= 32 && ch <= 126) { // Printable
-      if (input_len < SCREEN_COLS - 3) {
+      if (input_len < INPUT_MAX_LEN) {
         input_buf[input_len++] = ch;
         input_buf[input_len] = '\0';
         refresh_input_area();
@@ -273,13 +276,31 @@ static void chat_print_line(const char *s) {
 
 static void refresh_input_area(void) {
   pthread_mutex_lock(&fb_lock);
-
   clear_row(INPUT_ROW1);
   clear_row(INPUT_ROW2);
 
-  char line[SCREEN_COLS + 1];
-  snprintf(line, sizeof(line), "> %s", input_buf);
-  fbputs(line, INPUT_ROW1, 0);
+  /* First row: prompt + as much as fits on first row (SCREEN_COLS - 2) */
+  char line1[SCREEN_COLS + 1];
+  int first_len = (input_len > (SCREEN_COLS - 2)) ? (SCREEN_COLS - 2) : input_len;
+  memset(line1, ' ', SCREEN_COLS);
+  line1[SCREEN_COLS] = '\0';
+  line1[0] = '>';
+  line1[1] = ' ';
+  if (first_len > 0) {
+    memcpy(&line1[2], input_buf, (size_t)first_len);
+  }
+  fbputs(line1, INPUT_ROW1, 0);
+
+  /* Second row: remaining input (up to SCREEN_COLS) */
+  char line2[SCREEN_COLS + 1];
+  memset(line2, ' ', SCREEN_COLS);
+  line2[SCREEN_COLS] = '\0';
+  int rem = input_len - first_len;
+  if (rem > 0) {
+    int copy_len = rem > SCREEN_COLS ? SCREEN_COLS : rem;
+    memcpy(line2, &input_buf[first_len], (size_t)copy_len);
+  }
+  fbputs(line2, INPUT_ROW2, 0);
 
   pthread_mutex_unlock(&fb_lock);
 }
@@ -352,10 +373,27 @@ static void send_input_line(void) {
   snprintf(me_line, sizeof(me_line), "me: %s", input_buf);
   chat_print_line(me_line);
 
-  write(sockfd, input_buf, (size_t)input_len);
-  write(sockfd, "\n", 1);
+  /* send input + newline in a single buffer and ensure all bytes are written */
+  {
+    char sendBuf[INPUT_MAX_LEN + 2]; /* input + newline */
+    int sendLen = 0;
+    if (input_len > 0) {
+      memcpy(sendBuf, input_buf, (size_t)input_len);
+      sendLen = input_len;
+    }
+    sendBuf[sendLen++] = '\n';
+
+    int sent = 0;
+    while (sent < sendLen) {
+      ssize_t w = write(sockfd, sendBuf + sent, (size_t)(sendLen - sent));
+      if (w <= 0) break; /* on error or interrupt, give up */
+      sent += (int)w;
+    }
+  }
+
+  /* Fully clear the input buffer to avoid leftover data being re-sent */
+  memset(input_buf, 0, sizeof(input_buf));
   input_len = 0;
-  input_buf[0] = '\0';
   refresh_input_area();
 }
 
