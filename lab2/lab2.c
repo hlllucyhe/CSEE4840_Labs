@@ -1,8 +1,8 @@
 /*
  *
- * CSEE 4840 Lucy He/lh3365, Xiyuan Peng/xp2236, Pengpeng Wang/pw2660
+ * CSEE 4840
  *
- * Name/UNI: Please Changeto Yourname (pcy2301)
+ * Name/UNI: Lucy He/lh3365, Xiyuan Peng/xp2236, Pengpeng Wang/pw2660
  */
 #include "fbputchar.h"
 #include <stdio.h>
