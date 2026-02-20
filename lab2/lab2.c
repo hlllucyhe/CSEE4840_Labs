@@ -451,29 +451,6 @@ void *network_thread_f(void *ignored)
   char recvBuf[BUFFER_SIZE];
   int n;
   //Receive data
-  /*char lineBuf[512]; 
-  int lineLen = 0;
-
-  while ((n = read(sockfd, &recvBuf, BUFFER_SIZE - 1)) > 0) {
-      recvBuf[n] = '\0';
-
-      for (int i = 0; i < n; i++) {
-          char c = recvBuf[i];
-          if (c == '\r') continue;   // ignore CR
-          if (c == '\n') {
-              lineBuf[lineLen] = '\0';
-              if (lineLen > 0) {
-             chat_print_line(lineBuf);
-              }
-              lineLen = 0;
-          } else {
-              if (lineLen < sizeof(lineBuf) - 1) {
-                  lineBuf[lineLen++] = c;
-              }
-          }
-      }
-  }*/
- 
   /*while ((n = read(sockfd, &recvBuf, BUFFER_SIZE - 1)) > 0) {
     recvBuf[n] = '\0';
     printf("%s", recvBuf);
