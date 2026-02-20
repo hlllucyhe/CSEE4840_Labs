@@ -39,6 +39,11 @@ static int chat_cursor = CHAT_TOP;
 static char input_buf[SCREEN_COLS + 1];
 static int input_len = 0;
 
+/* In-memory chat buffer to support wrapping and scrolling */
+#define MAX_CHAT_LINES (CHAT_BOTTOM - CHAT_TOP + 1)
+static char chat_lines[MAX_CHAT_LINES][SCREEN_COLS + 1];
+static int chat_line_count = 0;
+
 static void clear_row(int row);
 static void draw_divider(void);
 static void chat_print_line(const char *s);
@@ -193,29 +198,75 @@ static void draw_divider(void) {
 static void chat_print_line(const char *s) {
   pthread_mutex_lock(&fb_lock);
 
-  if (chat_cursor > CHAT_BOTTOM) {
-    for (int r = CHAT_TOP; r <= CHAT_BOTTOM; r++)
-      clear_row(r);
-    chat_cursor = CHAT_TOP;
+  /* Build wrapped lines from input `s` */
+  char cur[SCREEN_COLS + 1];
+  int idx = 0;
+
+  for (const char *p = s; *p != '\0'; ++p) {
+    char c = *p;
+    if (c == '\r') continue;
+    if (c == '\n') {
+      /* flush current chunk */
+      cur[idx] = '\0';
+      if (chat_line_count < MAX_CHAT_LINES) {
+        strncpy(chat_lines[chat_line_count], cur, SCREEN_COLS);
+        chat_lines[chat_line_count][SCREEN_COLS] = '\0';
+        chat_line_count++;
+      } else {
+        memmove(chat_lines, chat_lines + 1, (size_t)(MAX_CHAT_LINES - 1) * (SCREEN_COLS + 1));
+        strncpy(chat_lines[MAX_CHAT_LINES - 1], cur, SCREEN_COLS);
+        chat_lines[MAX_CHAT_LINES - 1][SCREEN_COLS] = '\0';
+      }
+      idx = 0;
+      continue;
+    }
+
+    cur[idx++] = c;
+
+    if (idx >= SCREEN_COLS) {
+      cur[idx] = '\0';
+      if (chat_line_count < MAX_CHAT_LINES) {
+        strncpy(chat_lines[chat_line_count], cur, SCREEN_COLS);
+        chat_lines[chat_line_count][SCREEN_COLS] = '\0';
+        chat_line_count++;
+      } else {
+        memmove(chat_lines, chat_lines + 1, (size_t)(MAX_CHAT_LINES - 1) * (SCREEN_COLS + 1));
+        strncpy(chat_lines[MAX_CHAT_LINES - 1], cur, SCREEN_COLS);
+        chat_lines[MAX_CHAT_LINES - 1][SCREEN_COLS] = '\0';
+      }
+      idx = 0;
+    }
   }
 
-  clear_row(chat_cursor);
-
-  char tmp[SCREEN_COLS + 1];
-  // snprintf(tmp, sizeof(tmp), "%.*s", SCREEN_COLS, s);
-  int j = 0;
-
-  for (int i = 0; s[i] != '\0' && j < SCREEN_COLS; i++) {
-      if (s[i] == '\n' || s[i] == '\r')
-          continue;   // skip newline characters
-      tmp[j++] = s[i];
+  /* flush remaining partial chunk */
+  if (idx > 0) {
+    cur[idx] = '\0';
+    if (chat_line_count < MAX_CHAT_LINES) {
+      strncpy(chat_lines[chat_line_count], cur, SCREEN_COLS);
+      chat_lines[chat_line_count][SCREEN_COLS] = '\0';
+      chat_line_count++;
+    } else {
+      memmove(chat_lines, chat_lines + 1, (size_t)(MAX_CHAT_LINES - 1) * (SCREEN_COLS + 1));
+      strncpy(chat_lines[MAX_CHAT_LINES - 1], cur, SCREEN_COLS);
+      chat_lines[MAX_CHAT_LINES - 1][SCREEN_COLS] = '\0';
+    }
   }
 
-  tmp[j] = '\0';
+  /* Redraw chat area from buffer */
+  for (int i = 0; i < MAX_CHAT_LINES; ++i) {
+    char out[SCREEN_COLS + 1];
+    memset(out, ' ', SCREEN_COLS);
+    out[SCREEN_COLS] = '\0';
+    if (i < chat_line_count) {
+      strncpy(out, chat_lines[i], SCREEN_COLS);
+      out[SCREEN_COLS] = '\0';
+    }
+    fbputs(out, CHAT_TOP + i, 0);
+  }
 
-  fbputs(tmp, chat_cursor, 0);
-
-  chat_cursor++;
+  /* update cursor position */
+  chat_cursor = CHAT_TOP + chat_line_count;
+  if (chat_cursor > CHAT_BOTTOM + 1) chat_cursor = CHAT_BOTTOM + 1;
 
   pthread_mutex_unlock(&fb_lock);
 }
@@ -302,7 +353,7 @@ static void send_input_line(void) {
   chat_print_line(me_line);
 
   write(sockfd, input_buf, (size_t)input_len);
-
+  write(sockfd, "\n", 1);
   input_len = 0;
   input_buf[0] = '\0';
   refresh_input_area();
