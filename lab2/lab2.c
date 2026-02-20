@@ -261,8 +261,8 @@ static void chat_print_line(const char *s) {
     memset(out, ' ', SCREEN_COLS);
     out[SCREEN_COLS] = '\0';
     if (i < chat_line_count) {
-      strncpy(out, chat_lines[i], SCREEN_COLS);
-      out[SCREEN_COLS] = '\0';
+      size_t l = strnlen(chat_lines[i], SCREEN_COLS);
+      if (l > 0) memcpy(out, chat_lines[i], l);
     }
     fbputs(out, CHAT_TOP + i, 0);
   }
