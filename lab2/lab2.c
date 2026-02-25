@@ -35,6 +35,7 @@
 #define INPUT_ROWS 2
 
 static pthread_mutex_t fb_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_t cursor_thread;
 
 static int chat_cursor = CHAT_TOP;
 /* allow input to wrap across two input rows */
@@ -54,6 +55,9 @@ static void refresh_input_area(void);
 static char hid_to_ascii(uint8_t, uint8_t);
 static int should_accept_key(uint8_t, uint8_t);
 static void send_input_line(void);
+static void *cursor_thread_f(void *);
+
+static int cursor_visible = 1;
 static int cursor_pos = 0; 
 static int caps_lock_on = 0;
 
@@ -138,6 +142,9 @@ int main()
   /* Start the network thread */
   pthread_create(&network_thread, NULL, network_thread_f, NULL);
 
+  /* Start the cursor blinking thread */
+  pthread_create(&cursor_thread, NULL, cursor_thread_f, NULL);
+
   /* Look for and handle keypresses */
   for (;;) {
     libusb_interrupt_transfer(keyboard, endpoint_address,
@@ -214,6 +221,9 @@ int main()
 
   /* Wait for the network thread to finish */
   pthread_join(network_thread, NULL);
+
+  pthread_cancel(cursor_thread);
+  pthread_join(cursor_thread, NULL);
 
   return 0;
 }
@@ -342,6 +352,8 @@ static void refresh_input_area(void) {
   {
     int first_cap = SCREEN_COLS - 2;          //chars available after "> " 
     int row, col;
+    int buf_index = -1;
+    char under = ' ';
 
     if (cursor_pos <= first_cap) {
       row = INPUT_ROW1;
@@ -352,11 +364,33 @@ static void refresh_input_area(void) {
       col = cursor_pos - first_cap;
       if (col >= SCREEN_COLS) col = SCREEN_COLS - 1;
     }
+    
+    buf_index = cursor_pos;
+    if (buf_index >= 0 && buf_index < input_len) {
+      under = input_buf[buf_index];
+    } else {
+      under = ' ';
+    }
 
-    fbputchar('|', row, col);
+    if (cursor_visible) {
+      fbputchar('|', row, col);
+    } else {
+      fbputchar(under, row, col);  // ensure cursor disappears
+    }
   }
 
   pthread_mutex_unlock(&fb_lock);
+}
+
+static void *cursor_thread_f(void *ignored)
+{
+  (void)ignored;
+  for (;;) {
+    usleep(500000);              // 500 ms blink period (0.5s)
+    cursor_visible = !cursor_visible;
+    refresh_input_area();        // redraw input area with/without cursor
+  }
+  return NULL;
 }
 
 static int is_shift_pressed(uint8_t modifiers) {
