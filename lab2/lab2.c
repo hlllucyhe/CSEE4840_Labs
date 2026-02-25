@@ -415,10 +415,6 @@ static int should_accept_key(uint8_t kc, uint8_t mod) {
 static void send_input_line(void) {
     if (input_len <= 0) return;
 
-    char me_line[SCREEN_COLS + 32];
-    snprintf(me_line, sizeof(me_line), "me: %s", input_buf);
-    chat_print_line(me_line);
-
     /* send input + newline in a single buffer and ensure all bytes are written */
     char sendBuf[INPUT_MAX_LEN + 2]; /* input + newline */
     int sendLen = 0;
@@ -451,21 +447,21 @@ void *network_thread_f(void *ignored)
   char recvBuf[BUFFER_SIZE];
   int n;
   //Receive data
-  /*while ((n = read(sockfd, &recvBuf, BUFFER_SIZE - 1)) > 0) {
+  while ((n = read(sockfd, &recvBuf, BUFFER_SIZE - 1)) > 0) {
     recvBuf[n] = '\0';
     printf("%s", recvBuf);
     chat_print_line(recvBuf);
   }
-  */
-  while ((n = read(sockfd, recvBuf, BUFFER_SIZE - 1)) > 0) {
-      recvBuf[n] = '\0';
+  
+  // while ((n = read(sockfd, recvBuf, BUFFER_SIZE - 1)) > 0) {
+  //     recvBuf[n] = '\0';
 
-      if (strstr(recvBuf, last_sent) != NULL) {
-          continue;
-      }
+  //     if (strstr(recvBuf, last_sent) != NULL) {
+  //         continue;
+  //     }
 
-      chat_print_line(recvBuf);
-  }
+  //     chat_print_line(recvBuf);
+  // }
   return NULL;
 }
 
