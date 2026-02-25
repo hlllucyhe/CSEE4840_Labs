@@ -345,7 +345,7 @@ static void refresh_input_area(void) {
       if (col >= SCREEN_COLS) col = SCREEN_COLS - 1;
     }
 
-    fbputchar('_ ', row, col);
+    fbputchar('|', row, col);
   }
 
   pthread_mutex_unlock(&fb_lock);
