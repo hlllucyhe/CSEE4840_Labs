@@ -55,6 +55,7 @@ static char hid_to_ascii(uint8_t, uint8_t);
 static int should_accept_key(uint8_t, uint8_t);
 static void send_input_line(void);
 static int cursor_pos = 0; 
+static int caps_lock_on = 0;
 
 /*
  * References:
@@ -163,6 +164,13 @@ int main()
     if (kc == 0x4F) { //right arrow
       if (cursor_pos < input_len) cursor_pos++;
       refresh_input_area();
+      continue;
+    }
+
+    // Caps Lock toggles (HID keycode 0x39)
+    if (kc == 0x39) {
+      caps_lock_on = !caps_lock_on;
+      refresh_input_area();   // optional: if you later show an indicator
       continue;
     }
 
@@ -367,7 +375,8 @@ static char hid_to_ascii(uint8_t keycode, uint8_t modifiers) {
   /* Letters: HID 0x04..0x1D => a..z */
   if (keycode >= 0x04 && keycode <= 0x1D) {
     char base = (char)('a' + (keycode - 0x04));
-    return shift ? (char)(base - 'a' + 'A') : base;
+    int upper = shift ^ caps_lock_on; /* XOR Capslock*/
+    return upper ? (char)(base - 'a' + 'A') : base;
   }
 
   /* Numbers row: HID 0x1E..0x27 => 1..0 */
