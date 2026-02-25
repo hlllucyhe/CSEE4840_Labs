@@ -373,7 +373,7 @@ static void refresh_input_area(void) {
     }
 
     if (cursor_visible) {
-      fbputchar('|', row, col);
+      fbputchar('_', row, col);
     } else {
       fbputchar(under, row, col);  // ensure cursor disappears
     }
