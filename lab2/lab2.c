@@ -415,7 +415,7 @@ static int should_accept_key(uint8_t kc, uint8_t mod) {
 static void send_input_line(void) {
     if (input_len <= 0) return;
 
-    char me_line[SCREEN_COLS + 32];
+    char me_line[INPUT_MAX_LEN + 5];
     snprintf(me_line, sizeof(me_line), "me: %s", input_buf);
     chat_print_line(me_line);
 
