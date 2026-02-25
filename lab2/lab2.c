@@ -47,7 +47,6 @@ static char last_sent[INPUT_MAX_LEN + 2];
 #define MAX_CHAT_LINES (CHAT_BOTTOM - CHAT_TOP + 1)
 static char chat_lines[MAX_CHAT_LINES][SCREEN_COLS + 1];
 static int chat_line_count = 0;
-static uint8_t last_kc = 0;
 
 static void clear_row(int row);
 static void draw_divider(void);
@@ -61,22 +60,6 @@ static void *cursor_thread_f(void *);
 static int cursor_visible = 1;
 static int cursor_pos = 0; 
 static int caps_lock_on = 0;
-
-static int should_accept_key(uint8_t kc, uint8_t mod) {
-  (void)mod; // we intentionally ignore modifier-only changes while key held
-
-  if (kc == 0) {          // release
-    last_kc = 0;
-    return 0;
-  }
-
-  if (kc == last_kc) {    // same key still held -> do NOT generate another char
-    return 0;
-  }
-
-  last_kc = kc;           // new key press edge
-  return 1;
-}
 
 /*
  * References:
@@ -460,14 +443,18 @@ static uint8_t last_kc = 0;
 static uint8_t last_mod = 0;
 
 static int should_accept_key(uint8_t kc, uint8_t mod) {
-  if (kc == 0) { /* release */
+  (void)mod; // we intentionally ignore modifier-only changes while key held
+
+  if (kc == 0) {          // release
     last_kc = 0;
-    last_mod = 0;
     return 0;
   }
-  if (kc == last_kc && mod == last_mod) return 0;
-  last_kc = kc;
-  last_mod = mod;
+
+  if (kc == last_kc) {    // same key still held -> do NOT generate another char
+    return 0;
+  }
+
+  last_kc = kc;           // new key press edge
   return 1;
 }
 
