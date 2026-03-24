@@ -1,81 +1,87 @@
 /*
- * Userspace program that communicates with the vga_ball device driver
- * through ioctls
+ * Userspace program for the VGA bouncing ball
  *
- * Stephen A. Edwards
- * Columbia University
+ * Sends ball coordinates to the vga_ball device driver
+ * via ioctl, making the ball bounce around the screen.
  */
 
 #include <stdio.h>
-#include "vga_ball.h"
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include "vga_ball.h"
 
-int vga_ball_fd;
+/* Screen dimensions */
+#define SCREEN_WIDTH  640
+#define SCREEN_HEIGHT 480
+#define BALL_RADIUS   20
 
-/* Read and print the background color */
-void print_background_color() {
-  vga_ball_arg_t vla;
-  
-  if (ioctl(vga_ball_fd, VGA_BALL_READ_BACKGROUND, &vla)) {
-      perror("ioctl(VGA_BALL_READ_BACKGROUND) failed");
-      return;
-  }
-  printf("%02x %02x %02x\n",
-	 vla.background.red, vla.background.green, vla.background.blue);
-}
-
-/* Set the background color */
-void set_background_color(const vga_ball_color_t *c)
-{
-  vga_ball_arg_t vla;
-  vla.background = *c;
-  if (ioctl(vga_ball_fd, VGA_BALL_WRITE_BACKGROUND, &vla)) {
-      perror("ioctl(VGA_BALL_SET_BACKGROUND) failed");
-      return;
-  }
-}
+/* Device file */
+#define DEVICE "/dev/vga_ball"
 
 int main()
 {
-  vga_ball_arg_t vla;
-  int i;
-  static const char filename[] = "/dev/vga_ball";
+    int fd;
+    vga_ball_arg_t arg;
 
-  static const vga_ball_color_t colors[] = {
-    { 0xff, 0x00, 0x00 }, /* Red */
-    { 0x00, 0xff, 0x00 }, /* Green */
-    { 0x00, 0x00, 0xff }, /* Blue */
-    { 0xff, 0xff, 0x00 }, /* Yellow */
-    { 0x00, 0xff, 0xff }, /* Cyan */
-    { 0xff, 0x00, 0xff }, /* Magenta */
-    { 0x80, 0x80, 0x80 }, /* Gray */
-    { 0x00, 0x00, 0x00 }, /* Black */
-    { 0xff, 0xff, 0xff }  /* White */
-  };
+    /* Ball position */
+    int x = 320, y = 240;
 
-# define COLORS 9
+    /* Ball velocity (pixels per step) */
+    int vx = 3, vy = 2;
 
-  printf("VGA ball Userspace program started\n");
+    /* Open the device */
+    fd = open(DEVICE, O_RDWR);
+    if (fd < 0) {
+        perror("Could not open " DEVICE);
+        return -1;
+    }
 
-  if ( (vga_ball_fd = open(filename, O_RDWR)) == -1) {
-    fprintf(stderr, "could not open %s\n", filename);
-    return -1;
-  }
+    printf("VGA Ball userspace program started\n");
 
-  printf("initial state: ");
-  print_background_color();
+    /* Bounce forever */
+    while (1) {
 
-  for (i = 0 ; i < 24 ; i++) {
-    set_background_color(&colors[i % COLORS ]);
-    print_background_color();
-    usleep(400000);
-  }
-  
-  printf("VGA BALL Userspace program terminating\n");
-  return 0;
+        /* Send new position to hardware via driver */
+        arg.position.x = (unsigned short) x;
+        arg.position.y = (unsigned short) y;
+
+        if (ioctl(fd, VGA_BALL_WRITE_POSITION, &arg) < 0) {
+            perror("ioctl VGA_BALL_WRITE_POSITION failed");
+            close(fd);
+            return -1;
+        }
+
+        /* Update position */
+        x += vx;
+        y += vy;
+
+        /* Bounce off left/right walls */
+        if (x - BALL_RADIUS <= 0) {
+            x = BALL_RADIUS;
+            vx = abs(vx);
+        }
+        if (x + BALL_RADIUS >= SCREEN_WIDTH) {
+            x = SCREEN_WIDTH - BALL_RADIUS;
+            vx = -abs(vx);
+        }
+
+        /* Bounce off top/bottom walls */
+        if (y - BALL_RADIUS <= 0) {
+            y = BALL_RADIUS;
+            vy = abs(vy);
+        }
+        if (y + BALL_RADIUS >= SCREEN_HEIGHT) {
+            y = SCREEN_HEIGHT - BALL_RADIUS;
+            vy = -abs(vy);
+        }
+
+        /* Small delay to control speed (~60 fps) */
+        usleep(16000);
+    }
+
+    close(fd);
+    return 0;
 }
