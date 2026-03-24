@@ -42,7 +42,7 @@ add_fileset QUARTUS_SYNTH QUARTUS_SYNTH "" ""
 set_fileset_property QUARTUS_SYNTH TOP_LEVEL vga_ball
 set_fileset_property QUARTUS_SYNTH ENABLE_RELATIVE_INCLUDE_PATHS false
 set_fileset_property QUARTUS_SYNTH ENABLE_FILE_OVERWRITE_MODE false
-add_fileset_file vga_ball.sv SYSTEM_VERILOG PATH vga_ball.sv TOP_LEVEL_FILE
+add_fileset_file vga_ball.sv SYSTEM_VERILOG PATH ../../vga_ball.sv TOP_LEVEL_FILE
 
 
 # 
@@ -91,7 +91,7 @@ add_interface avalon_slave_0 avalon end
 set_interface_property avalon_slave_0 addressUnits WORDS
 set_interface_property avalon_slave_0 associatedClock clock
 set_interface_property avalon_slave_0 associatedReset reset
-set_interface_property avalon_slave_0 bitsPerSymbol 8
+set_interface_property avalon_slave_0 bitsPerSymbol 16
 set_interface_property avalon_slave_0 burstOnBurstBoundariesOnly false
 set_interface_property avalon_slave_0 burstcountUnits WORDS
 set_interface_property avalon_slave_0 explicitAddressSpan 0
@@ -110,7 +110,7 @@ set_interface_property avalon_slave_0 PORT_NAME_MAP ""
 set_interface_property avalon_slave_0 CMSIS_SVD_VARIABLES ""
 set_interface_property avalon_slave_0 SVD_ADDRESS_GROUP ""
 
-add_interface_port avalon_slave_0 writedata writedata Input 8
+add_interface_port avalon_slave_0 writedata writedata Input 16
 add_interface_port avalon_slave_0 write write Input 1
 add_interface_port avalon_slave_0 chipselect chipselect Input 1
 add_interface_port avalon_slave_0 address address Input 3
@@ -140,4 +140,3 @@ add_interface_port vga VGA_HS hs Output 1
 add_interface_port vga VGA_R r Output 8
 add_interface_port vga VGA_SYNC_n sync Output 1
 add_interface_port vga VGA_VS vs Output 1
-
