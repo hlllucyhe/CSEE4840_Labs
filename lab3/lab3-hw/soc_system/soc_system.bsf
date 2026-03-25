@@ -342,8 +342,8 @@ https://fpgasoftware.intel.com/eula.
 	(port
 		(pt 0 1056)
 		(output)
-		(text "vga_sync" (rect 0 0 41 12)(font "Arial" (font_size 8)))
-		(text "vga_sync" (rect 4 1045 52 1056)(font "Arial" (font_size 8)))
+		(text "vga_sync_n" (rect 0 0 51 12)(font "Arial" (font_size 8)))
+		(text "vga_sync_n" (rect 4 1045 64 1056)(font "Arial" (font_size 8)))
 		(line (pt 0 1056)(pt 176 1056)(line_width 1))
 	)
 	(port
@@ -628,7 +628,7 @@ https://fpgasoftware.intel.com/eula.
 		(text "g" (rect 181 1003 368 2016)(font "Arial" (color 0 0 0)))
 		(text "hs" (rect 181 1019 374 2048)(font "Arial" (color 0 0 0)))
 		(text "r" (rect 181 1035 368 2080)(font "Arial" (color 0 0 0)))
-		(text "sync" (rect 181 1051 386 2112)(font "Arial" (color 0 0 0)))
+		(text "sync_n" (rect 181 1051 398 2112)(font "Arial" (color 0 0 0)))
 		(text "vs" (rect 181 1067 374 2144)(font "Arial" (color 0 0 0)))
 		(text " soc_system " (rect 504 1088 1080 2186)(font "Arial" ))
 		(line (pt 176 32)(pt 384 32)(line_width 1))

@@ -72,7 +72,7 @@
 		.vga_g                        (<connected-to-vga_g>),                        //         .g
 		.vga_hs                       (<connected-to-vga_hs>),                       //         .hs
 		.vga_r                        (<connected-to-vga_r>),                        //         .r
-		.vga_sync                     (<connected-to-vga_sync>),                     //         .sync
+		.vga_sync_n                   (<connected-to-vga_sync_n>),                   //         .sync_n
 		.vga_vs                       (<connected-to-vga_vs>)                        //         .vs
 	);
 

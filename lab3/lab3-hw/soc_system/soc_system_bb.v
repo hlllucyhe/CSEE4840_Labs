@@ -73,7 +73,7 @@ module soc_system (
 	vga_g,
 	vga_hs,
 	vga_r,
-	vga_sync,
+	vga_sync_n,
 	vga_vs);	
 
 	input		clk_clk;
@@ -149,6 +149,6 @@ module soc_system (
 	output	[7:0]	vga_g;
 	output		vga_hs;
 	output	[7:0]	vga_r;
-	output		vga_sync;
+	output		vga_sync_n;
 	output		vga_vs;
 endmodule

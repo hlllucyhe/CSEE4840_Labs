@@ -73,7 +73,7 @@
 			vga_g                        : out   std_logic_vector(7 downto 0);                     -- g
 			vga_hs                       : out   std_logic;                                        -- hs
 			vga_r                        : out   std_logic_vector(7 downto 0);                     -- r
-			vga_sync                     : out   std_logic;                                        -- sync
+			vga_sync_n                   : out   std_logic;                                        -- sync_n
 			vga_vs                       : out   std_logic                                         -- vs
 		);
 	end component soc_system;
@@ -153,7 +153,7 @@
 			vga_g                        => CONNECTED_TO_vga_g,                        --         .g
 			vga_hs                       => CONNECTED_TO_vga_hs,                       --         .hs
 			vga_r                        => CONNECTED_TO_vga_r,                        --         .r
-			vga_sync                     => CONNECTED_TO_vga_sync,                     --         .sync
+			vga_sync_n                   => CONNECTED_TO_vga_sync_n,                   --         .sync_n
 			vga_vs                       => CONNECTED_TO_vga_vs                        --         .vs
 		);
 
