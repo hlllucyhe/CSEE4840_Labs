@@ -36,7 +36,7 @@ module vga_ball(input logic        clk,
    parameter [7:0] BALL_R = 8'hff, BALL_G = 8'hff, BALL_B = 8'hff;
 
    // Background color: dark blue
-   parameter [7:0] BG_R = 8'h00, BG_G = 8'h00, BG_B = 8'h80;
+   parameter [7:0] BG_R = 8'h80, BG_G = 8'h00, BG_B = 8'h80;
 
    vga_counters counters(.clk50(clk), .*);
 
