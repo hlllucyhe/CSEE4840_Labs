@@ -63,8 +63,11 @@ module vga_ball(input logic        clk,
    assign dx = $signed({1'b0, hpixel}) - $signed({1'b0, ball_x[9:0]});
    assign dy = $signed({1'b0, vcount}) - $signed({1'b0, ball_y[9:0]});
 
+   logic[23:0]dist_sq;
+   assign dist_sq = dx*dx+dy*dy;
+
    logic in_ball;
-   assign in_ball = (dx*dx + dy*dy) <= (BALL_RADIUS * BALL_RADIUS);
+   assign in_ball = (dist_sq <= (BALL_RADIUS * BALL_RADIUS));
 
    // VGA output
    always_comb begin
