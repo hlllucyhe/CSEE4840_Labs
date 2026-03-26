@@ -1,0 +1,66 @@
+# OS / editor
+*~
+*.swp
+*.swo
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Quartus / FPGA build outputs
+db/
+incremental_db/
+output_files/
+simulation/
+greybox_tmp/
+tmp/
+temp/
+
+# Generated Platform Designer / Qsys output
+soc_system/
+*.sopcinfo
+*.qip
+*.cmp
+*.bsf
+
+# Quartus project generated files
+*.qws
+*.qdf
+*.rpt
+*.summary
+*.pin
+*.jdi
+
+# Programming / configuration files
+*.sof
+*.pof
+*.rbf
+*.jic
+*.cdf
+
+# Logs
+*.log
+
+# Device tree / generated boot artifacts
+*.dtb
+*.dts~
+
+# Kernel/module build artifacts
+*.o
+*.ko
+*.mod
+*.mod.c
+*.order
+*.symvers
+.modules.order
+Module.symvers
+
+# C build outputs
+*.out
+*.elf
+*.a
+
+# If these are generated in your flow, ignore them too
+nios_syslib/
+hps_isw_handoff/
