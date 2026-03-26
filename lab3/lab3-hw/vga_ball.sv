@@ -20,6 +20,11 @@ module vga_ball(input logic        clk,
    logic [10:0]	   hcount;
    logic [9:0]     vcount;
 
+   /*
+    * Register map
+    *   address 0: ball_x[9:0]   center x coordinate, [0, 639]
+    *   address 1: ball_y[8:0]   center y coordinate, [0, 479]
+    */
    logic [9:0] 	   ball_x;
    logic [8:0] 	   ball_y;
 	
