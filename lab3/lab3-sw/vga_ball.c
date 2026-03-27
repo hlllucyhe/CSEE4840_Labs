@@ -1,13 +1,21 @@
-/*
- * Device driver for the VGA ball peripheral
+/* * Device driver for the VGA video generator
  *
  * A Platform device implemented using the misc subsystem
  *
  * Stephen A. Edwards
  * Columbia University
  *
+ * References:
+ * Linux source: Documentation/driver-model/platform.txt
+ *               drivers/misc/arm-charlcd.c
+ * http://www.linuxforu.com/tag/linux-device-drivers/
+ * http://free-electrons.com/docs/
+ *
  * "make" to build
  * insmod vga_ball.ko
+ *
+ * Check code style with
+ * checkpatch.pl --file --no-tree vga_ball.c
  */
 
 #include <linux/module.h>
@@ -159,14 +167,14 @@ static struct platform_driver vga_ball_driver = {
     .remove = __exit_p(vga_ball_remove),
 };
 
-/* Called when the module is loaded */
+/* Called when the module is loaded: set things up */
 static int __init vga_ball_init(void)
 {
     pr_info(DRIVER_NAME ": init\n");
     return platform_driver_probe(&vga_ball_driver, vga_ball_probe);
 }
 
-/* Called when the module is unloaded */
+/* Calball when the module is unloaded: release resources */
 static void __exit vga_ball_exit(void)
 {
     platform_driver_unregister(&vga_ball_driver);
