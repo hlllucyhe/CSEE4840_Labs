@@ -16,7 +16,7 @@ typedef struct {
 
 #define VGA_BALL_MAGIC 'q'
 
-/* ioctl commands */
+/* ioctls and their arguments */
 #define VGA_BALL_WRITE_POSITION _IOW(VGA_BALL_MAGIC, 1, vga_ball_arg_t)
 #define VGA_BALL_READ_POSITION  _IOR(VGA_BALL_MAGIC, 2, vga_ball_arg_t)
 
