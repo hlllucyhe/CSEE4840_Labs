@@ -6,40 +6,40 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
+#include "vga_ball.h"
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include "vga_ball.h"
 
 /* Screen dimensions */
 #define SCREEN_WIDTH  640
 #define SCREEN_HEIGHT 480
 #define BALL_RADIUS   20
 
-/* Device file */
-#define DEVICE "/dev/vga_ball"
+
+int vga_ball_fd;
 
 int main()
 {
-    int fd;
     vga_ball_arg_t arg;
+    static const char filename[] = "/dev/vga_ball";
 
     /* Ball position */
     int x = 320, y = 240;
 
     /* Ball velocity (pixels per step) */
     int vx = 3, vy = 2;
+    
+    /* open device */
+    printf("VGA ball Userspace program started\n");
 
-    /* Open the device */
-    fd = open(DEVICE, O_RDWR);
-    if (fd < 0) {
-        perror("Could not open " DEVICE);
-        return -1;
+    if ( (vga_ball_fd = open(filename, O_RDWR)) == -1) {
+      fprintf(stderr, "could not open %s\n", filename);
+      return -1;
     }
-
-    printf("VGA Ball userspace program started\n");
 
     /* Bounce forever */
     while (1) {
@@ -48,9 +48,9 @@ int main()
         arg.position.x = (unsigned short) x;
         arg.position.y = (unsigned short) y;
 
-        if (ioctl(fd, VGA_BALL_WRITE_POSITION, &arg) < 0) {
+        if (ioctl(vga_ball_fd, VGA_BALL_WRITE_POSITION, &arg) < 0) {
             perror("ioctl VGA_BALL_WRITE_POSITION failed");
-            close(fd);
+            close(vga_ball_fd);
             return -1;
         }
 
@@ -82,6 +82,6 @@ int main()
         usleep(16000);
     }
 
-    close(fd);
+    close(vga_ball_fd);
     return 0;
 }
